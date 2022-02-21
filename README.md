@@ -9,3 +9,6 @@ While Threema is a great messenger app for many purposes, it can become difficul
 
 ## Team
 We are Fabian and Moritz, two freelance software developers from Hamburg, Germany. We met during our Computer Science bachelor programme at HAW Hamburg and have been developing various software projects since then.
+
+## Community
+Feel free to join or Matrix room [#threema-bridge:matrix.org](https://matrix.to/#/#threema-bridge:matrix.org) if you want to follow our development process.
