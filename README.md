@@ -15,3 +15,10 @@ Feel free to join our Matrix room [#threema-bridge:matrix.org](https://matrix.to
 
 ## Legal Disclaimer
 This project has no connection or affiliation with Threema or Threema GmbH.
+
+## Funding
+<div style="display: flex;">
+<a href="https://www.bmbf.de/"><img src="https://user-images.githubusercontent.com/4677417/159274561-ca7a0f0f-b7cf-4a91-a6bc-b38e1f768b11.svg" width="250px" /></a>
+<a href="https://prototypefund.de/project/threematrix-eine-bruecke-zwischen-threema-und-dem-matrix-protokoll/"><img src="https://user-images.githubusercontent.com/4677417/159274772-bd4a0ea2-ef2e-4578-89fe-f87e61d21e73.svg" width="250px" /></a>
+</div>
+
