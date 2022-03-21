@@ -1,4 +1,6 @@
 # Threematrix
+![Mastodon Follow](https://img.shields.io/mastodon/follow/107838426834517530?domain=https%3A%2F%2Fmastodon.social&style=social) 
+![Matrix](https://img.shields.io/matrix/threematrix:matrix.org?label=Chat%20on%20Matrix&style=social)
 > Threematrix is a proposed bridge between the Threema messenger and the Matrix protocol. It is currently a work-in-progress project and is being funded via the Prototype Fund.
 
 ## Status
