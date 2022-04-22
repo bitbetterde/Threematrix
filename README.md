@@ -9,7 +9,7 @@ This project was submitted and accepted for funding via the 11th round of the [G
 First code will be committed some time during April 2022.
 
 ## Motivation
-While Threema is a great messenger app for many purposes, it can become difficult to use for lager organizations. The lack of room directories or the limitation of groups only having a single admin user are hard to work around once your organization grows bigger. For users it's very hard to leave Threema behind, even though theoretically it is an Open Source project, because in reality there are very few 3rd-party-integrations of the Threema protocol. We're trying to open Threema up to the world of Matrix.
+While Threema is a great messenger app for many purposes, it can become difficult to use for larger organizations. The lack of room directories or the limitation of groups only having a single admin user are hard to work around once your organization grows bigger. For users it's very hard to leave Threema behind, even though theoretically it is an Open Source project, because in reality there are very few 3rd-party-integrations of the Threema protocol. We're trying to open Threema up to the world of Matrix.
 
 ## Team
 We are Fabian and Moritz, two software developers from Hamburg, Germany. We initially met during our Computer Science bachelor programme at HAW Hamburg and have been developing various freelance software projects since then.
