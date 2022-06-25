@@ -52,6 +52,8 @@ pub async fn incoming_message_handler(
                         .map(|group_id| -> &str { group_id.as_ref() })
                         .collect();
 
+                    client.send_group_sync_req_msg(&group_text_msg.group_id, &group_text_msg.group_creator).await;
+
                     client
                         .send_group_msg(&group_text_msg.text, &group_text_msg.group_creator, group_text_msg.group_id.as_slice(), receivers.as_slice())
                         .await;
