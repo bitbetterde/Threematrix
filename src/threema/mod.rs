@@ -1,5 +1,6 @@
 use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage};
 
+use crate::threema::serialization::encrypt_group_sync_req_msg;
 use crate::threema::types::{GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
 
 use self::serialization::encrypt_group_text_msg;
@@ -25,6 +26,7 @@ impl ThreemaClient {
             .unwrap();
         return ThreemaClient { api: api };
     }
+
     pub async fn send_group_msg(
         &self,
         text: &str,
@@ -48,6 +50,20 @@ impl ThreemaClient {
             }
         }
     }
+
+    pub async fn send_group_sync_req_msg(
+        &self,
+        group_id: &[u8],
+        receiver: &str,
+    ) -> () {
+        let public_key = self.api.lookup_pubkey(receiver).await.unwrap();
+        let encrypted_message = encrypt_group_sync_req_msg(group_id, &public_key.into(), &self.api);
+        match &self.api.send(receiver, &encrypted_message, false).await {
+            Ok(msg_id) => println!("Sent. Message id is {}.", msg_id),
+            Err(e) => println!("Could not send message: {:?}", e),
+        }
+    }
+
 
     pub async fn process_incoming_msg(
         &self,
