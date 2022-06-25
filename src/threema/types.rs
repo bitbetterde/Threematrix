@@ -8,7 +8,6 @@ pub enum Message {
 
 pub struct GroupRenameMessage {
     pub base: MessageBase,
-    pub group_creator: String,
     pub group_id: Vec<u8>,
     pub group_name: String,
 }
