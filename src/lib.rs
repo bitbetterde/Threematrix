@@ -45,10 +45,10 @@ pub async fn incoming_message_handler(
 ) -> impl Responder {
     let secret = &app_state.config.secret;
     let private_key = &app_state.config.private_key;
-    let from = &app_state.config.gateway_from;
+    let own_id = &app_state.config.gateway_from;
     // let to_group_ids = vec![&app_state.config.to_user_id_1, &app_state.config.to_user_id_2];
 
-    let client = ThreemaClient::new(from, secret, private_key);
+    let client = ThreemaClient::new(own_id, secret, private_key);
 
     let decrypted_message = client.process_incoming_msg(&incoming_message).await;
 
@@ -76,7 +76,7 @@ pub async fn incoming_message_handler(
                 Message::GroupCreateMessage(group_create_msg) => {
                     println!("member: {:?}", group_create_msg.members);
                     let mut members = app_state.members.lock().unwrap();
-                    *members = group_create_msg.members.clone();
+                    *members = group_create_msg.members.iter().filter(|member| *member != own_id).cloned().collect();
 
                     let mut queued_messages = app_state.queued_messages.lock().unwrap();
                     for message in queued_messages.drain(..) {

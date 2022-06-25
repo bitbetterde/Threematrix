@@ -19,8 +19,8 @@ const MESSAGE_TYPE_NUM_BYTES: usize = 1;
 const THREEMA_ID_LENGTH: usize = 8;
 
 impl ThreemaClient {
-    pub fn new(from: &str, secret: &str, private_key: &str) -> ThreemaClient {
-        let api = ApiBuilder::new(from, secret)
+    pub fn new(own_id: &str, secret: &str, private_key: &str) -> ThreemaClient {
+        let api = ApiBuilder::new(own_id, secret)
             .with_private_key_str(private_key.as_ref())
             .and_then(|builder| builder.into_e2e())
             .unwrap();
