@@ -1,3 +1,5 @@
+extern crate core;
+
 use std::fs::read_to_string;
 
 use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
@@ -57,7 +59,7 @@ pub async fn incoming_message_handler(
                 _ => {}
             }
         }
-        Err(_) => {}
+        Err(_) => {} //TODO
     }
 
     HttpResponse::Ok()
