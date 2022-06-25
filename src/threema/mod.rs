@@ -1,11 +1,12 @@
-pub mod serialization;
-pub mod types;
+use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage};
 
-use crate::threema::types::{GroupTextMessage, MessageBase, TextMessage};
+use crate::threema::types::{GroupCreateMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
 
 use self::serialization::encrypt_group_text_msg;
 use self::types::Message;
-use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage, MessageType};
+
+pub mod serialization;
+pub mod types;
 
 pub struct ThreemaClient {
     api: E2eApi,
@@ -77,51 +78,77 @@ impl ThreemaClient {
 
         let message_type: u8 = &data[0] & 0xFF;
         println!("  MessageType: {:#02x}", message_type);
-        let msg_type_as_u8: u8 = MessageType::Text.into();
-        // GroupTextMessage
-        if message_type == 0x41 {
-            let group_creator = String::from_utf8(data[1..9].to_vec()).unwrap();
-            let group_id = &data[9..17];
-            let text = String::from_utf8(data[17..].to_vec()).unwrap();
 
-            // Show result
-            println!("  GroupCreator: {}", group_creator);
-            println!("  groupId: {:?}", group_id);
-            println!("  text: {}", text);
 
-            return Ok(Message::GroupTextMessage(GroupTextMessage {
-                base: MessageBase {
-                    from_identity: incoming_message.from.clone(),
-                    to_identity: incoming_message.to.clone(),
-                    push_from_name: incoming_message.nickname.clone(),
-                    message_id: incoming_message.message_id.clone(),
-                    date: incoming_message.date as u64,
-                },
-                text: text,
-                group_creator: group_creator,
-                group_id: group_id.to_vec(),
-            }));
+        let base = MessageBase {
+            from_identity: incoming_message.from.clone(),
+            to_identity: incoming_message.to.clone(),
+            push_from_name: incoming_message.nickname.clone(),
+            message_id: incoming_message.message_id.clone(),
+            date: incoming_message.date as u64,
+        };
 
-            // client
-            //     .send_group_msg(&text, &group_creator, group_id, receivers.as_slice())
-            //     .await;
-        } else if message_type == msg_type_as_u8 {
-            let text = String::from_utf8(data[1..].to_vec()).unwrap();
-            println!("  text: {}", text);
-            return Ok(Message::TextMessage(TextMessage {
-                base: MessageBase {
-                    from_identity: incoming_message.from.clone(),
-                    to_identity: incoming_message.to.clone(),
-                    push_from_name: incoming_message.nickname.clone(),
-                    message_id: incoming_message.message_id.clone(),
-                    date: incoming_message.date as u64,
-                },
-                text: text,
-            }));
-        } else {
-            println!("Unknown message type received");
-            println!("  content: {:?}", &data[1..]);
-            Err(())
+        match MessageType::from(message_type) {
+            MessageType::Text => {
+                let text = String::from_utf8(data[1..].to_vec()).unwrap();
+                println!("  text: {}", text);
+                return Ok(Message::TextMessage(TextMessage {
+                    base,
+                    text,
+                }));
+            }
+            MessageType::GroupText => {
+                let group_creator = String::from_utf8(data[1..9].to_vec()).unwrap();
+                let group_id = &data[9..17];
+                let text = String::from_utf8(data[17..].to_vec()).unwrap();
+
+                // Show result
+                println!("  GroupCreator: {}", group_creator);
+                println!("  groupId: {:?}", group_id);
+                println!("  text: {}", text);
+
+                return Ok(Message::GroupTextMessage(GroupTextMessage {
+                    base,
+                    text,
+                    group_creator,
+                    group_id: group_id.to_vec(),
+                }));
+            }
+            MessageType::GroupCreate => {
+                let group_id = &data[1..9];
+                let mut members: Vec<String> = Vec::new();
+
+                let mut counter = 0;
+                let mut current_member_id = "".to_owned();
+                for char in &data[9..] {
+                    current_member_id = current_member_id + String::from_utf8(vec!(*char)).unwrap().as_str();
+                    counter = counter + 1;
+                    if counter == 8 {
+                        members.push(current_member_id.clone());
+                        current_member_id = "".to_owned();
+                        counter = 0;
+                    }
+                }
+
+                println!("member: {:?}", members);
+
+                return Ok(Message::GroupCreateMessage(GroupCreateMessage {
+                    base,
+                    members,
+                    group_id: group_id.to_vec(),
+                }));
+            }
+            // MessageType::GroupRename => {}
+            // MessageType::GroupRequestSync => {}
+            // MessageType::Image => {}
+            // MessageType::Video => {}
+            // MessageType::File => {}
+            // MessageType::DeliveryReceipt => {}
+            _ => {
+                println!("Unknown message type received");
+                println!("  content: {:?}", &data[1..]);
+                Err(())
+            }
         }
     }
 }
