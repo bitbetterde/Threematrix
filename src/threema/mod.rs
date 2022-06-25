@@ -1,6 +1,7 @@
 pub mod serialization;
 pub mod types;
-use crate::threema::types::MessageBase;
+
+use crate::threema::types::{GroupTextMessage, MessageBase, TextMessage};
 
 use self::serialization::encrypt_group_text_msg;
 use self::types::Message;
@@ -83,17 +84,12 @@ impl ThreemaClient {
             let group_id = &data[9..17];
             let text = String::from_utf8(data[17..].to_vec()).unwrap();
 
-            // let receivers: Vec<&str> = to_group_ids
-            //     .iter()
-            //     .map(|group_id| -> &str { group_id.as_ref() })
-            //     .collect();
-
             // Show result
             println!("  GroupCreator: {}", group_creator);
             println!("  groupId: {:?}", group_id);
             println!("  text: {}", text);
 
-            return Ok(Message::GroupTextMessage {
+            return Ok(Message::GroupTextMessage(GroupTextMessage {
                 base: MessageBase {
                     from_identity: incoming_message.from.clone(),
                     to_identity: incoming_message.to.clone(),
@@ -104,7 +100,7 @@ impl ThreemaClient {
                 text: text,
                 group_creator: group_creator,
                 group_id: group_id.to_vec(),
-            });
+            }));
 
             // client
             //     .send_group_msg(&text, &group_creator, group_id, receivers.as_slice())
@@ -112,7 +108,7 @@ impl ThreemaClient {
         } else if message_type == msg_type_as_u8 {
             let text = String::from_utf8(data[1..].to_vec()).unwrap();
             println!("  text: {}", text);
-            return Ok(Message::TextMessage {
+            return Ok(Message::TextMessage(TextMessage {
                 base: MessageBase {
                     from_identity: incoming_message.from.clone(),
                     to_identity: incoming_message.to.clone(),
@@ -121,7 +117,7 @@ impl ThreemaClient {
                     date: incoming_message.date as u64,
                 },
                 text: text,
-            });
+            }));
         } else {
             println!("Unknown message type received");
             println!("  content: {:?}", &data[1..]);
