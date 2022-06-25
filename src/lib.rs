@@ -1,11 +1,14 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
-use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
 use std::fs::read_to_string;
-use std::iter::repeat;
 use threema_gateway::{
-    ApiBuilder, E2eApi, EncryptedMessage, IncomingMessage, MessageType, RecipientKey,
+    ApiBuilder, IncomingMessage, MessageType,
 };
+
+use crate::threema::serialization::encrypt_group_text_msg;
+
+mod matrix;
+mod threema;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreemaConfig {
@@ -68,7 +71,7 @@ pub async fn incoming_message_handler(
     let message_type: u8 = &data[0] & 0xFF;
     println!("  MessageType: {:#02x}", message_type);
     let msg_type_as_u8: u8 = MessageType::Text.into();
-    //GroupTextMessage
+    // GroupTextMessage
     if message_type == 0x41 {
         let group_creator = String::from_utf8(data[1..9].to_vec()).unwrap();
         let group_id = &data[9..17];
@@ -99,35 +102,4 @@ pub async fn incoming_message_handler(
     HttpResponse::Ok()
         .content_type(ContentType::plaintext())
         .body(())
-}
-
-pub fn encrypt_group_text_msg(
-    text: &str,
-    group_creator: &str,
-    group_id: &[u8],
-    recipient_key: &RecipientKey,
-    threema_api: &E2eApi,
-) -> EncryptedMessage {
-    let padding_amount = random_padding_amount();
-    let padding = repeat(padding_amount).take(padding_amount as usize);
-    let msgtype_byte = repeat(0x41).take(1);
-
-    let data: Vec<u8> = group_creator
-        .as_bytes()
-        .iter()
-        .cloned()
-        .chain(group_id.iter().cloned())
-        .chain(text.as_bytes().iter().cloned())
-        .collect();
-    let padded_plaintext: Vec<u8> = msgtype_byte
-        .chain(data.iter().cloned())
-        .chain(padding)
-        .collect();
-
-    threema_api.encrypt_raw(&padded_plaintext, &recipient_key)
-}
-
-fn random_padding_amount() -> u8 {
-    let mut rng = rand::thread_rng();
-    return rng.gen_range(1..255);
 }
