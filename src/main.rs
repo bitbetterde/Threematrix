@@ -1,15 +1,12 @@
-#[macro_use]
 extern crate serde_derive;
 extern crate core;
 
 use std::fs::read_to_string;
-use std::io::Read;
 use std::iter::repeat;
 
-use actix_web::{App, http::header::ContentType, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web};
-use actix_web::web::{Bytes, Query};
+use actix_web::{App, http::header::ContentType, HttpResponse, HttpServer, post, Responder, web};
 use rand::Rng;
-use threema_gateway::{ApiBuilder, E2eApi, EncryptedMessage, IncomingMessage, MessageType, RecipientKey, SecretKey};
+use threema_gateway::{ApiBuilder, E2eApi, EncryptedMessage, IncomingMessage, MessageType, RecipientKey};
 use serde_derive::{Serialize, Deserialize};
 
 
@@ -63,7 +60,7 @@ async fn incoming_message(incoming_message: web::Form<IncomingMessage>) -> impl 
         });
 
     let message_type: u8 = &data[0] & 0xFF;
-    println!("MessageType: {:#02x}", message_type);
+    println!("  MessageType: {:#02x}", message_type);
     let msg_type_as_u8: u8 = MessageType::Text.into();
     //GroupTextMessage
     if message_type == 0x41 {
@@ -72,9 +69,9 @@ async fn incoming_message(incoming_message: web::Form<IncomingMessage>) -> impl 
         let text = String::from_utf8(data[17..].to_vec()).unwrap();
 
         // Show result
-        println!("GroupCreator: {}", group_creator);
-        println!("groupId: {:?}", group_id);
-        println!("text: {}", text);
+        println!("  GroupCreator: {}", group_creator);
+        println!("  groupId: {:?}", group_id);
+        println!("  text: {}", text);
 
         for user_id in to_group_ids {
             let public_key = api.lookup_pubkey(&user_id).await.unwrap();
@@ -87,9 +84,9 @@ async fn incoming_message(incoming_message: web::Form<IncomingMessage>) -> impl 
         }
     } else if message_type == msg_type_as_u8 {
         let text = String::from_utf8(data[1..].to_vec());
-        println!("text: {}", text.unwrap());
+        println!("  text: {}", text.unwrap());
     } else {
-        println!("content: {:?}", &data[1..]);
+        println!("  content: {:?}", &data[1..]);
     }
 
 

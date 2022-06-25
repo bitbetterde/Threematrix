@@ -3,16 +3,11 @@ name = "threematrix"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 threema-gateway = "0.15.1"
 tokio = { version = "1", features = ["full"] }
 actix-web = "4"
-matrix-sdk = "0.4.1"
 rand = "0.8.5"
 toml = "0.5.9"
 serde = "1.0.137"
 serde_derive = "^1.0"
-
-[dev-dependencies]
