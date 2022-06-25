@@ -59,6 +59,9 @@ pub async fn incoming_message_handler(
                 Message::GroupCreateMessage(group_create_msg) => {
                     println!("member: {:?}", group_create_msg.members);
                 }
+                Message::GroupRenameMessage(group_rename_msg) => {
+                    println!("group name: {:?}", group_rename_msg.group_name);
+                }
                 _ => {}
             }
         }

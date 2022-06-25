@@ -1,6 +1,6 @@
 use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage};
 
-use crate::threema::types::{GroupCreateMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
+use crate::threema::types::{GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
 
 use self::serialization::encrypt_group_text_msg;
 use self::types::Message;
@@ -136,7 +136,16 @@ impl ThreemaClient {
                     group_id: group_id.to_vec(),
                 }));
             }
-            // MessageType::GroupRename => {}
+            MessageType::GroupRename => {
+                let group_id = &data[1..9];
+                let group_name = String::from_utf8(data[17..].to_vec()).unwrap();
+
+                return Ok(Message::GroupRenameMessage(GroupRenameMessage {
+                    base,
+                    group_name,
+                    group_id: group_id.to_vec(),
+                }));
+            }
             // MessageType::GroupRequestSync => {}
             // MessageType::Image => {}
             // MessageType::Video => {}
