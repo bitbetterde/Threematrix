@@ -1,6 +1,7 @@
 extern crate core;
 
 use std::fs::read_to_string;
+use std::sync::Mutex;
 
 use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
 use serde_derive::{Deserialize, Serialize};
@@ -9,9 +10,18 @@ use threema_gateway::IncomingMessage;
 use threema::types::Message;
 
 use crate::threema::ThreemaClient;
+use crate::threema::types::GroupTextMessage;
 
 pub mod matrix;
 pub mod threema;
+
+pub struct AppState {
+    pub config: ThreemaConfig,
+    pub members: Mutex<Vec<String>>,
+    pub group_name: Mutex<String>,
+    pub queued_messages: Mutex<Vec<GroupTextMessage>>,
+}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreemaConfig {
@@ -31,12 +41,12 @@ impl ThreemaConfig {
 
 pub async fn incoming_message_handler(
     incoming_message: web::Form<IncomingMessage>,
-    cfg: web::Data<ThreemaConfig>,
+    app_state: web::Data<AppState>,
 ) -> impl Responder {
-    let secret = &cfg.secret;
-    let private_key = &cfg.private_key;
-    let from = &cfg.gateway_from;
-    let to_group_ids = vec![&cfg.to_user_id_1, &cfg.to_user_id_2];
+    let secret = &app_state.config.secret;
+    let private_key = &app_state.config.private_key;
+    let from = &app_state.config.gateway_from;
+    // let to_group_ids = vec![&app_state.config.to_user_id_1, &app_state.config.to_user_id_2];
 
     let client = ThreemaClient::new(from, secret, private_key);
 
@@ -47,19 +57,38 @@ pub async fn incoming_message_handler(
         Ok(message) => {
             match message {
                 Message::GroupTextMessage(group_text_msg) => {
-                    let receivers: Vec<&str> = to_group_ids
-                        .iter()
-                        .map(|group_id| -> &str { group_id.as_ref() })
-                        .collect();
+                    let members = app_state.members.lock().unwrap();
+                    if members.len() == 0 {
+                        client.send_group_sync_req_msg(&group_text_msg.group_id, &group_text_msg.group_creator).await;
+                        let mut queued_messages = app_state.queued_messages.lock().unwrap();
+                        queued_messages.push(group_text_msg);
+                    } else {
+                        let receivers: Vec<&str> = members
+                            .iter()
+                            .map(|group_id| -> &str { group_id.as_ref() })
+                            .collect();
 
-                    client.send_group_sync_req_msg(&group_text_msg.group_id, &group_text_msg.group_creator).await;
-
-                    client
-                        .send_group_msg(&group_text_msg.text, &group_text_msg.group_creator, group_text_msg.group_id.as_slice(), receivers.as_slice())
-                        .await;
+                        client
+                            .send_group_msg(&group_text_msg.text, &group_text_msg.group_creator, group_text_msg.group_id.as_slice(), receivers.as_slice())
+                            .await;
+                    }
                 }
                 Message::GroupCreateMessage(group_create_msg) => {
                     println!("member: {:?}", group_create_msg.members);
+                    let mut members = app_state.members.lock().unwrap();
+                    *members = group_create_msg.members.clone();
+
+                    let mut queued_messages = app_state.queued_messages.lock().unwrap();
+                    for message in queued_messages.drain(..) {
+                        let receivers: Vec<&str> = members
+                            .iter()
+                            .map(|group_id| -> &str { group_id.as_ref() })
+                            .collect();
+
+                        client
+                            .send_group_msg(&message.text, &message.group_creator, message.group_id.as_slice(), receivers.as_slice())
+                            .await;
+                    }
                 }
                 Message::GroupRenameMessage(group_rename_msg) => {
                     println!("group name: {:?}", group_rename_msg.group_name);
