@@ -130,8 +130,6 @@ impl ThreemaClient {
                     }
                 }
 
-                println!("member: {:?}", members);
-
                 return Ok(Message::GroupCreateMessage(GroupCreateMessage {
                     base,
                     members,

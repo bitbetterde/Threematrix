@@ -56,6 +56,9 @@ pub async fn incoming_message_handler(
                         .send_group_msg(&group_text_msg.text, &group_text_msg.group_creator, group_text_msg.group_id.as_slice(), receivers.as_slice())
                         .await;
                 }
+                Message::GroupCreateMessage(group_create_msg) => {
+                    println!("member: {:?}", group_create_msg.members);
+                }
                 _ => {}
             }
         }
