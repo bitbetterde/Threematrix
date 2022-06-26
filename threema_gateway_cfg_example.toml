@@ -1,5 +1,5 @@
 secret = "secret"
 private_key = "privateKey"
-gateway_from = "from"
+gateway_own_id = "from"
 
 

@@ -29,6 +29,7 @@ pub struct TextMessage {
     pub text: String,
 }
 
+#[derive(Clone)]
 pub struct GroupTextMessage {
     pub base: MessageBase,
     pub text: String,
@@ -36,6 +37,7 @@ pub struct GroupTextMessage {
     pub group_id: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct MessageBase {
     pub from_identity: String,
     pub to_identity: String,
