@@ -1,16 +1,21 @@
+use std::collections::HashMap;
 use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage};
 
 use crate::threema::serialization::encrypt_group_sync_req_msg;
-use crate::threema::types::{GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
+use crate::threema::types::{
+    GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage,
+};
 
 use self::serialization::encrypt_group_text_msg;
-use self::types::Message;
+use self::types::{Message, MessageGroup};
 
 pub mod serialization;
 pub mod types;
 
 pub struct ThreemaClient {
     api: E2eApi,
+    pub groups: HashMap<Vec<u8>, MessageGroup>,
+    pub queued_messages: Vec<GroupTextMessage>,
 }
 
 const GROUP_ID_NUM_BYTES: usize = 8;
@@ -24,7 +29,11 @@ impl ThreemaClient {
             .with_private_key_str(private_key.as_ref())
             .and_then(|builder| builder.into_e2e())
             .unwrap();
-        return ThreemaClient { api: api };
+        return ThreemaClient {
+            api: api,
+            groups: HashMap::new(),
+            queued_messages: Vec::new(),
+        };
     }
 
     pub async fn send_group_msg(
@@ -51,11 +60,7 @@ impl ThreemaClient {
         }
     }
 
-    pub async fn send_group_sync_req_msg(
-        &self,
-        group_id: &[u8],
-        receiver: &str,
-    ) -> () {
+    pub async fn send_group_sync_req_msg(&self, group_id: &[u8], receiver: &str) -> () {
         let public_key = self.api.lookup_pubkey(receiver).await.unwrap();
         let encrypted_message = encrypt_group_sync_req_msg(group_id, &public_key.into(), &self.api);
         match &self.api.send(receiver, &encrypted_message, false).await {
@@ -63,7 +68,6 @@ impl ThreemaClient {
             Err(e) => println!("Could not send message: {:?}", e),
         }
     }
-
 
     pub async fn process_incoming_msg(
         &self,
@@ -101,7 +105,6 @@ impl ThreemaClient {
         let message_type: u8 = &data[0] & 0xFF;
         println!("  MessageType: {:#02x}", message_type);
 
-
         let base = MessageBase {
             from_identity: incoming_message.from.clone(),
             to_identity: incoming_message.to.clone(),
@@ -114,15 +117,21 @@ impl ThreemaClient {
             MessageType::Text => {
                 let text = String::from_utf8(data[MESSAGE_TYPE_NUM_BYTES..].to_vec()).unwrap();
                 println!("  text: {}", text);
-                return Ok(Message::TextMessage(TextMessage {
-                    base,
-                    text,
-                }));
+                return Ok(Message::TextMessage(TextMessage { base, text }));
             }
             MessageType::GroupText => {
-                let group_creator = String::from_utf8(data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES].to_vec()).unwrap();
-                let group_id = &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES];
-                let text = String::from_utf8(data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES..].to_vec()).unwrap();
+                let group_creator = String::from_utf8(
+                    data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES]
+                        .to_vec(),
+                )
+                .unwrap();
+                let group_id = &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES
+                    ..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES];
+                let text = String::from_utf8(
+                    data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES..]
+                        .to_vec(),
+                )
+                .unwrap();
 
                 // Show result
                 println!("  GroupCreator: {}", group_creator);
@@ -137,13 +146,15 @@ impl ThreemaClient {
                 }));
             }
             MessageType::GroupCreate => {
-                let group_id = &data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES];
+                let group_id =
+                    &data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES];
                 let mut members: Vec<String> = Vec::new();
 
                 let mut counter = 0;
                 let mut current_member_id = "".to_owned();
                 for char in &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..] {
-                    current_member_id = current_member_id + String::from_utf8(vec!(*char)).unwrap().as_str();
+                    current_member_id =
+                        current_member_id + String::from_utf8(vec![*char]).unwrap().as_str();
                     counter = counter + 1;
                     if counter == THREEMA_ID_LENGTH {
                         members.push(current_member_id.clone());
@@ -160,7 +171,10 @@ impl ThreemaClient {
             }
             MessageType::GroupRename => {
                 let group_id = &data[MESSAGE_TYPE_NUM_BYTES..GROUP_ID_NUM_BYTES];
-                let group_name = String::from_utf8(data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..].to_vec()).unwrap();
+                let group_name = String::from_utf8(
+                    data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..].to_vec(),
+                )
+                .unwrap();
 
                 return Ok(Message::GroupRenameMessage(GroupRenameMessage {
                     base,

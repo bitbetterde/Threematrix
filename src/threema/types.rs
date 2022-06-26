@@ -1,4 +1,10 @@
+// Custom internal types
+pub struct MessageGroup {
+    pub members: Vec<String>,
+    pub name: String,
+}
 
+// Threema types
 pub enum Message {
     GroupTextMessage(GroupTextMessage),
     TextMessage(TextMessage),

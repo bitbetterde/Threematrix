@@ -1,6 +1,5 @@
 secret = "secret"
 private_key = "privateKey"
 gateway_from = "from"
-to_user_id_1 = "id1"
-to_user_id_2 = "id2"
+
 
