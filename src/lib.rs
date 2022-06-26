@@ -50,10 +50,10 @@ pub async fn incoming_message_handler(
                     .await;
             }
             Message::GroupCreateMessage(group_create_msg) => {
-                println!("  members: {:?}", group_create_msg.members);
+                println!("Got group create message with members: {:?}", group_create_msg.members);
             }
             Message::GroupRenameMessage(group_rename_msg) => {
-                println!("group name: {:?}", group_rename_msg.group_name);
+                println!("Got group rename message for: {:?}", group_rename_msg.group_name);
             }
             _ => {}
         },

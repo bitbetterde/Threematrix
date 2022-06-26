@@ -189,29 +189,50 @@ impl ThreemaClient {
                     }
                 }
 
-                // Make sure to always add sender/group creator (different behavior between Android and iOS)
-                members.insert(incoming_message.from.clone());
+                let me_in_group = members
+                    .iter()
+                    .find(|member| **member == incoming_message.to)
+                    .is_some();
 
-                let members_without_me: Vec<String> = members
+                let mut members_without_me: HashSet<&String> = members
                     .iter()
                     .filter(|member| *member != &incoming_message.to)
-                    .map(|member| member.to_owned())
                     .collect();
 
-                {
+                if members_without_me.len() != 0 && me_in_group {
+                    // Make sure to always add sender/group creator (different behavior between Android and iOS)
+                    members_without_me.insert(&incoming_message.from);
+
+                    {
+                        let mut groups = self.groups.lock().unwrap();
+                        groups
+                            .entry(group_id.to_vec())
+                            .and_modify(|group| {
+                                group.members = members_without_me
+                                    .iter()
+                                    .map(|member| (*member).to_owned())
+                                    .collect()
+                            })
+                            .or_insert(MessageGroup {
+                                members: members_without_me
+                                    .iter()
+                                    .map(|member| (*member).to_owned())
+                                    .collect(),
+                                name: "".to_owned(),
+                            });
+                    }
+                } else {
                     let mut groups = self.groups.lock().unwrap();
-                    groups
-                        .entry(group_id.to_vec())
-                        .and_modify(|group| group.members = members_without_me.clone())
-                        .or_insert(MessageGroup {
-                            members: members_without_me.clone(),
-                            name: "".to_owned(),
-                        });
+                    println!("Leaving group");
+                    groups.remove(group_id);
                 }
 
                 return Ok(Message::GroupCreateMessage(GroupCreateMessage {
                     base,
-                    members: members_without_me,
+                    members: members_without_me
+                        .iter()
+                        .map(|member| (*member).to_owned())
+                        .collect(),
                     group_id: group_id.to_vec(),
                 }));
             }
