@@ -17,7 +17,6 @@ pub mod types;
 pub struct ThreemaClient {
     api: Mutex<E2eApi>,
     groups: Mutex<HashMap<Vec<u8>, MessageGroup>>,
-    queued_messages: Mutex<Vec<GroupTextMessage>>,
 }
 
 const GROUP_ID_NUM_BYTES: usize = 8;
@@ -34,7 +33,6 @@ impl ThreemaClient {
         return ThreemaClient {
             api: Mutex::new(api),
             groups: Mutex::new(HashMap::new()),
-            queued_messages: Mutex::new(Vec::new()),
         };
     }
 
