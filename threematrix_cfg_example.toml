@@ -1,0 +1,9 @@
+[threema]
+secret = "abc123"
+private_key = "abcd1234"
+gateway_own_id ="*CUSTOM1"
+
+[matrix]
+homeserver_url = "https://matrix.myserver.com"
+user = "myuser"
+password = "abc123"
