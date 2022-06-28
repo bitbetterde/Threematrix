@@ -1,6 +1,8 @@
 // Custom internal types
+#[derive(Debug)]
 pub struct MessageGroup {
     pub members: Vec<String>,
+    pub group_creator: String,
     pub name: String,
 }
 
