@@ -2,20 +2,21 @@ extern crate core;
 
 use std::fs::read_to_string;
 
+use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
+use matrix_sdk::Client;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::Room;
+use matrix_sdk::ruma::events::macros::EventContent;
+use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, TextMessageEventContent,
 };
-use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::TransactionId;
-use matrix_sdk::Client;
-
-use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use serde_derive::{Deserialize, Serialize};
-use threema::types::Message;
 use threema_gateway::IncomingMessage;
 use tokio::sync::Mutex;
+
+use threema::types::Message;
 
 use crate::threema::ThreemaClient;
 
@@ -40,6 +41,7 @@ pub struct MatrixConfig {
     pub user: String,
     pub password: String,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreematrixConfig {
     pub threema: ThreemaConfig,
@@ -64,6 +66,26 @@ pub async fn threema_incoming_message_handler(
         Ok(message) => match message {
             Message::GroupTextMessage(group_text_msg) => {
                 let matrix_client = app_state.matrix_client.lock().await;
+
+                if group_text_msg.text.starts_with("!threematrix") {
+                    let splittet_text: Vec<&str> = group_text_msg.text.split(" ").collect();
+                    let rooms = matrix_client.joined_rooms();
+                    let room = rooms.iter().find(|r| r.room_id() == splittet_text[1]).unwrap();
+
+                    #[derive(Clone, Debug, Deserialize, Serialize, EventContent)]
+                    #[ruma_event(type = "m.threematrix", kind = State, state_key_type = String)]
+                    struct ThreematrixStateEventContent {
+                        threematrix_threema_group_id: String,
+                    }
+                    let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
+                        threematrix_threema_group_id: group_text_msg.group_id
+                            .iter()
+                            .map(|value| format!("{}", value))
+                            .reduce(|a, b| a + b.as_str()).unwrap()
+                    };
+
+                    room.send_state_event(content, "").await.unwrap();
+                }
 
                 let content = RoomMessageEventContent::text_plain(
                     group_text_msg.base.push_from_name.unwrap()
@@ -108,10 +130,10 @@ pub async fn matrix_incoming_message_handler(
     if let Room::Joined(room) = room {
         if let OriginalSyncMessageLikeEvent {
             content:
-                RoomMessageEventContent {
-                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                    ..
-                },
+            RoomMessageEventContent {
+                msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                ..
+            },
             sender,
             ..
         } = event
