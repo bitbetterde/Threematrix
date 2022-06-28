@@ -13,9 +13,9 @@ use matrix_sdk::Client;
 
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use serde_derive::{Deserialize, Serialize};
+use threema::types::Message;
 use threema_gateway::IncomingMessage;
 use tokio::sync::Mutex;
-use threema::types::Message;
 
 use crate::threema::ThreemaClient;
 
@@ -103,6 +103,7 @@ pub async fn matrix_incoming_message_handler(
     event: OriginalSyncMessageLikeEvent<RoomMessageEventContent>,
     room: Room,
     threema_client: Ctx<ThreemaClient>,
+    matrix_client: Client,
 ) -> () {
     if let Room::Joined(room) = room {
         if let OriginalSyncMessageLikeEvent {
@@ -122,8 +123,8 @@ pub async fn matrix_incoming_message_handler(
                 .display_name()
                 .unwrap_or_else(|| member.user_id().as_str());
 
-            println!("name: {}", name);
-            if name != "threematrix" {
+            // Filter out messages coming from our own bridge user
+            if sender != matrix_client.user_id().await.unwrap() {
                 let group_id = threema_client
                     .get_group_id_by_group_name("threematrix")
                     .await;
