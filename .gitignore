@@ -1,5 +1,5 @@
 /target
-threema_gateway_cfg.toml
+threematrix_cfg.toml
 .idea
 .DS_Store
 
