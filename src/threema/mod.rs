@@ -14,6 +14,7 @@ use self::types::{Message, MessageGroup};
 
 pub mod serialization;
 pub mod types;
+pub mod util;
 
 #[derive(Clone)]
 pub struct ThreemaClient {
@@ -21,10 +22,10 @@ pub struct ThreemaClient {
     groups: Arc<Mutex<HashMap<Vec<u8>, MessageGroup>>>,
 }
 
-const GROUP_ID_NUM_BYTES: usize = 8;
-const GROUP_CREATOR_NUM_BYTES: usize = 8;
-const MESSAGE_TYPE_NUM_BYTES: usize = 1;
-const THREEMA_ID_LENGTH: usize = 8;
+pub const GROUP_ID_NUM_BYTES: usize = 8;
+pub const GROUP_CREATOR_NUM_BYTES: usize = 8;
+pub const MESSAGE_TYPE_NUM_BYTES: usize = 1;
+pub const THREEMA_ID_LENGTH: usize = 8;
 
 impl ThreemaClient {
     pub fn new(own_id: &str, secret: &str, private_key: &str) -> ThreemaClient {
