@@ -52,9 +52,7 @@ impl ThreemaClient {
         group_id: &[u8],
     ) -> () {
         let groups = self.groups.lock().await;
-        println!("debug1");
         if let Some(group) = groups.get(group_id) {
-            println!("debug2 : {:?}", group);
             let receiver: Vec<&str> = group.members.iter().map(|str| str.as_str()).collect();
             self.send_group_msg(text, &group.group_creator, group_id, receiver.as_slice()).await;
         } else {
@@ -69,9 +67,7 @@ impl ThreemaClient {
         group_id: &[u8],
         receivers: &[&str],
     ) -> () {
-        println!("debug3");
         let api = self.api.lock().await;
-        println!("debug4: {:?}", receivers);
         for user_id in receivers {
             println!("send msg to:{}", user_id);
             let public_key = api.lookup_pubkey(*user_id).await.unwrap();
@@ -220,8 +216,6 @@ impl ThreemaClient {
                             .iter()
                             .map(|member| (*member).to_owned())
                             .collect();
-                        println!("debug6 : {:?}", groups);
-                        println!("debug7 : {:?}", new_members);
                         groups
                             .entry(group_id.to_vec())
                             .and_modify(|group| {
@@ -233,7 +227,6 @@ impl ThreemaClient {
                                 group_creator: incoming_message.from.clone(),
                             });
 
-                        println!("debug8 : {:?}", groups);
                     }
                 } else {
                     let mut groups = self.groups.lock().await;
@@ -258,7 +251,6 @@ impl ThreemaClient {
 
                 {
                     let mut groups = self.groups.lock().await;
-                    println!("debug5 : {:?}", groups);
                     groups
                         .entry(group_id.to_vec())
                         .and_modify(|group| group.name = group_name.clone())

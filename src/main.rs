@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use threematrix::{
     AppState, matrix_incoming_message_handler, threema_incoming_message_handler, ThreematrixConfig,
 };
+use threematrix::matrix::on_stripped_state_member;
 use threematrix::threema::ThreemaClient;
 
 #[actix_web::main]
@@ -47,6 +48,10 @@ async fn main() -> std::io::Result<()> {
     matrix_client
         .register_event_handler_context(threema_client.clone())
         .register_event_handler(matrix_incoming_message_handler)
+        .await;
+
+    matrix_client
+        .register_event_handler(on_stripped_state_member)
         .await;
 
     // let settings = SyncSettings::default().token(client.sync_token().await.unwrap());
