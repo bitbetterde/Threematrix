@@ -1,17 +1,27 @@
-use actix_web::{web, App, HttpServer};
+use std::process;
+use actix_web::{App, HttpServer, web};
+use futures::stream::StreamExt;
+use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::reqwest::Url;
-use matrix_sdk::Client;
+use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
+use signal_hook_tokio::Signals;
 use tokio::sync::Mutex;
 
-use threematrix::threema::ThreemaClient;
 use threematrix::{
-    matrix_incoming_message_handler, threema_incoming_message_handler, AppState, ThreematrixConfig,
+    AppState, matrix_incoming_message_handler, threema_incoming_message_handler, ThreematrixConfig,
 };
+use threematrix::threema::ThreemaClient;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting Threematrix Server");
+    let mut signals = Signals::new(&[
+        SIGTERM,
+        SIGINT,
+        SIGQUIT,
+    ])?;
+
 
     let cfg = ThreematrixConfig::new("./threematrix_cfg.toml");
     let threema_client = ThreemaClient::new(
@@ -41,17 +51,30 @@ async fn main() -> std::io::Result<()> {
 
     // let settings = SyncSettings::default().token(client.sync_token().await.unwrap());
 
-    let (first, _) = tokio::join!(
-        HttpServer::new(move || {
-            App::new().app_data(app_state.clone()).route(
-                "/callback",
-                web::post().to(threema_incoming_message_handler),
-            )
-        })
+    let threema_server = tokio::spawn(HttpServer::new(move || {
+        App::new().app_data(app_state.clone()).route(
+            "/callback",
+            web::post().to(threema_incoming_message_handler),
+        )
+    })
         .bind(("127.0.0.1", 8888))?
-        .run(),
-        matrix_client.sync(SyncSettings::default())
-    );
-    first.unwrap();
+        .run());
+
+
+    let matrix_server = tokio::spawn(async move {
+        matrix_client.sync(SyncSettings::default()).await
+    });
+
+    while let Some(signal) = signals.next().await {
+        match signal {
+            SIGTERM | SIGINT | SIGQUIT => {
+                matrix_server.abort();
+                threema_server.abort();
+                process::exit(1);
+            }
+            _ => unreachable!(),
+        }
+    }
+
     Ok(())
 }
