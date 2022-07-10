@@ -4,9 +4,9 @@ use std::sync::Arc;
 use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage, PublicKey};
 use tokio::sync::Mutex;
 
-use log::{info, debug};
-use threema_gateway::errors::{ApiBuilderError, ApiError};
 use crate::errors::{ProcessIncomingMessageError, SendGroupMessageError};
+use log::{debug, info};
+use threema_gateway::errors::{ApiBuilderError, ApiError};
 
 use crate::threema::serialization::encrypt_group_sync_req_msg;
 use crate::threema::types::{
@@ -33,7 +33,11 @@ pub const MESSAGE_TYPE_NUM_BYTES: usize = 1;
 pub const THREEMA_ID_LENGTH: usize = 8;
 
 impl ThreemaClient {
-    pub fn new(own_id: &str, secret: &str, private_key: &str) -> Result<ThreemaClient, ApiBuilderError> {
+    pub fn new(
+        own_id: &str,
+        secret: &str,
+        private_key: &str,
+    ) -> Result<ThreemaClient, ApiBuilderError> {
         let api = ApiBuilder::new(own_id, secret)
             .with_private_key_str(private_key.as_ref())
             .and_then(|builder| builder.into_e2e())?;
@@ -51,7 +55,10 @@ impl ThreemaClient {
         let groups = self.groups.lock().await;
         if let Some(group) = groups.get(group_id) {
             let receiver: Vec<&str> = group.members.iter().map(|str| str.as_str()).collect();
-            return self.send_group_msg(text, &group.group_creator, group_id, receiver.as_slice()).await.map_err(|e| SendGroupMessageError::ApiError(e));
+            return self
+                .send_group_msg(text, &group.group_creator, group_id, receiver.as_slice())
+                .await
+                .map_err(|e| SendGroupMessageError::ApiError(e));
         } else {
             // TODO warn!("Threema: Could not send message to group, because members are unknown (to be expected, when no Threema message has been received, yet)");
             return Err(SendGroupMessageError::GroupNotInCache);
@@ -68,28 +75,45 @@ impl ThreemaClient {
         let api = self.api.lock().await;
         for user_id in receivers {
             debug!("Threema: Sending message to: {}", user_id);
-            let public_key = self.lookup_pubkey_with_retry(user_id).await?; //TODO cache
+            let public_key = self.lookup_pubkey_with_retry(user_id, &api).await?; //TODO cache
 
             let encrypted_msg =
                 encrypt_group_text_msg(text, group_creator, group_id, &public_key.into(), &api);
 
-            retry_request(|| async { api.send(&user_id, &encrypted_msg, false).await }, 20 * 1000, 6).await?;
+            retry_request(
+                || async { api.send(&user_id, &encrypted_msg, false).await },
+                20 * 1000,
+                6,
+            )
+            .await?;
             debug!("Threema: Message sent successfully");
         }
         return Ok(());
     }
 
-    async fn lookup_pubkey_with_retry(&self, user_id: &str) -> Result<PublicKey, ApiError> {
-        let api = self.api.lock().await;
+    async fn lookup_pubkey_with_retry(
+        &self,
+        user_id: &str,
+        api: &E2eApi,
+    ) -> Result<PublicKey, ApiError> {
         retry_request(|| async { api.lookup_pubkey(user_id).await }, 20 * 1000, 6).await
     }
 
-    pub async fn send_group_sync_req_msg(&self, group_id: &[u8], receiver: &str) -> Result<(), ApiError> {
+    pub async fn send_group_sync_req_msg(
+        &self,
+        group_id: &[u8],
+        receiver: &str,
+    ) -> Result<(), ApiError> {
         let api = self.api.lock().await;
-        let public_key = self.lookup_pubkey_with_retry(receiver).await?;
+        let public_key = self.lookup_pubkey_with_retry(receiver, &api).await?;
         let encrypted_message = encrypt_group_sync_req_msg(group_id, &public_key.into(), &api);
 
-        retry_request(|| async { api.send(receiver, &encrypted_message, false).await }, 20 * 1000, 6).await?;
+        retry_request(
+            || async { api.send(receiver, &encrypted_message, false).await },
+            20 * 1000,
+            6,
+        )
+        .await?;
         debug!("Threema: Group sync message sent successfully");
         return Ok(());
     }
@@ -108,9 +132,14 @@ impl ThreemaClient {
         let data;
         {
             let api = self.api.lock().await;
-            let pubkey = self.lookup_pubkey_with_retry(&incoming_message.from).await.map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
+            let pubkey = self
+                .lookup_pubkey_with_retry(&incoming_message.from, &api)
+                .await
+                .map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
 
-            data = api.decrypt_incoming_message(&incoming_message, &pubkey).map_err(|e| ProcessIncomingMessageError::CryptoError(e))?;
+            data = api
+                .decrypt_incoming_message(&incoming_message, &pubkey)
+                .map_err(|e| ProcessIncomingMessageError::CryptoError(e))?;
         }
         let message_type: u8 = &data[0] & 0xFF;
         debug!("Threema: MessageType: {:#02x}", message_type);
@@ -134,24 +163,28 @@ impl ThreemaClient {
                 let group_creator = String::from_utf8(
                     data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES]
                         .to_vec(),
-                ).map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                )
+                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
                 let group_id = &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES
                     ..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES];
                 let text = String::from_utf8(
                     data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES..]
                         .to_vec(),
-                ).map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                )
+                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
 
                 // Show result
                 debug!("Threema: GroupCreator: {}", group_creator);
                 debug!("Threema: groupId: {:?}", group_id);
-                debug!("Thremma: text: {}", text);
+                debug!("Threema: text: {}", text);
 
                 {
                     let groups = self.groups.lock().await;
                     if let None = groups.get(group_id) {
                         debug!("Threema: Unknown group, sending sync req");
-                        self.send_group_sync_req_msg(group_id, group_creator.as_str()).await.map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
+                        self.send_group_sync_req_msg(group_id, group_creator.as_str())
+                            .await
+                            .map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
                     }
                 }
 
@@ -170,8 +203,8 @@ impl ThreemaClient {
                 let mut counter = 0;
                 let mut current_member_id = "".to_owned();
                 for char in &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..] {
-                    current_member_id =
-                        current_member_id + String::from_utf8(vec![*char])
+                    current_member_id = current_member_id
+                        + String::from_utf8(vec![*char])
                             .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?
                             .as_str();
                     counter = counter + 1;
@@ -230,10 +263,12 @@ impl ThreemaClient {
                 }));
             }
             MessageType::GroupRename => {
-                let group_id = &data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_ID_NUM_BYTES];
+                let group_id =
+                    &data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_ID_NUM_BYTES];
                 let group_name = String::from_utf8(
                     data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..].to_vec(),
-                ).map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                )
+                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
 
                 {
                     let mut groups = self.groups.lock().await;

@@ -24,10 +24,10 @@ use crate::threema::util::{
 };
 use crate::threema::ThreemaClient;
 
+pub mod errors;
 pub mod matrix;
 pub mod threema;
 pub mod util;
-pub mod errors;
 
 pub struct AppState {
     pub threema_client: ThreemaClient,
@@ -111,7 +111,9 @@ pub async fn threema_incoming_message_handler(
                                 )
                             ),
                             Ok(Some(state)) => {
-                                if let Ok(group_id) = convert_group_id_to_readable_string(&group_text_msg.group_id) {
+                                if let Ok(group_id) =
+                                    convert_group_id_to_readable_string(&group_text_msg.group_id)
+                                {
                                     if state.threematrix_threema_group_id == group_id {
                                         let txn_id = TransactionId::new();
                                         room.send(content.clone(), Some(&txn_id)).await.unwrap();
@@ -137,7 +139,10 @@ pub async fn threema_incoming_message_handler(
             }
             _ => {}
         },
-        Err(_) => {} //TODO
+
+        Err(err) => {
+            debug!("Threema: Incoming Message Error: {}", err);
+        } //TODO Send message to user
     }
 
     HttpResponse::Ok()
@@ -155,10 +160,10 @@ pub async fn matrix_incoming_message_handler(
         Room::Joined(room) => {
             if let OriginalSyncMessageLikeEvent {
                 content:
-                RoomMessageEventContent {
-                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                    ..
-                },
+                    RoomMessageEventContent {
+                        msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                        ..
+                    },
                 sender,
                 ..
             } = event
@@ -167,11 +172,12 @@ pub async fn matrix_incoming_message_handler(
 
                 match get_threematrix_room_state(&room).await {
                     Ok(None) => debug!(
-                                "Matrix: Room {:?} does not have proper room state",
-                                &room.display_name().await.unwrap_or(
-                                    matrix_sdk::DisplayName::Named("UNKNOWN".to_owned())
-                                )
-                            ),
+                        "Matrix: Room {:?} does not have proper room state",
+                        &room
+                            .display_name()
+                            .await
+                            .unwrap_or(matrix_sdk::DisplayName::Named("UNKNOWN".to_owned()))
+                    ),
                     Ok(Some(threematrix_state)) => {
                         let group_id = convert_group_id_from_readable_string(
                             threematrix_state.threematrix_threema_group_id.as_str(),
@@ -185,9 +191,13 @@ pub async fn matrix_incoming_message_handler(
                         // Filter out messages coming from our own bridge user
                         if sender != matrix_client.user_id().await.unwrap() {
                             if let Ok(group_id) = group_id {
-                                if let Err(e) = threema_client.
-                                    send_group_msg_by_group_id(&(name.to_owned() + ": " + &msg_body), group_id.as_slice())
-                                    .await {
+                                if let Err(e) = threema_client
+                                    .send_group_msg_by_group_id(
+                                        &(name.to_owned() + ": " + &msg_body),
+                                        group_id.as_slice(),
+                                    )
+                                    .await
+                                {
                                     error!("Threema: Couldn't send message to Group: {}", e)
                                     // TODO Send response to Matrix channel
                                 }
