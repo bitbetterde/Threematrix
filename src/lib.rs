@@ -1,23 +1,23 @@
-extern crate core;
-
 use std::fs::read_to_string;
 
+use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
+use matrix_sdk::Client;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::room::Room;
+use matrix_sdk::room::{Room};
+use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, TextMessageEventContent,
 };
-use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::TransactionId;
-use matrix_sdk::Client;
-
-use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use serde_derive::{Deserialize, Serialize};
-use threema::types::Message;
 use threema_gateway::IncomingMessage;
 use tokio::sync::Mutex;
 
+use threema::types::Message;
+
+use crate::matrix::util::{get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent};
 use crate::threema::ThreemaClient;
+use crate::threema::util::{convert_group_id_from_readable_string, convert_group_id_to_readable_string};
 
 pub mod matrix;
 pub mod threema;
@@ -40,6 +40,7 @@ pub struct MatrixConfig {
     pub user: String,
     pub password: String,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreematrixConfig {
     pub threema: ThreemaConfig,
@@ -65,17 +66,30 @@ pub async fn threema_incoming_message_handler(
             Message::GroupTextMessage(group_text_msg) => {
                 let matrix_client = app_state.matrix_client.lock().await;
 
-                let content = RoomMessageEventContent::text_plain(
-                    group_text_msg.base.push_from_name.unwrap()
-                        + ": "
-                        + group_text_msg.text.as_str(),
-                );
-                let txn_id = TransactionId::new();
+                if group_text_msg.text.starts_with("!threematrix") {
+                    let split_text: Vec<&str> = group_text_msg.text.split(" ").collect();
+                    let rooms = matrix_client.joined_rooms();
+                    let room = rooms.iter().find(|r| r.room_id() == split_text[1]).unwrap(); //TODO
 
-                matrix_client.joined_rooms()[0]
-                    .send(content, Some(&txn_id))
-                    .await
-                    .unwrap();
+                    let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
+                        threematrix_threema_group_id: convert_group_id_to_readable_string(&group_text_msg.group_id)
+                    };
+                    set_threematrix_room_state(content, room).await;
+                } else {
+                    let content = RoomMessageEventContent::text_plain(
+                        group_text_msg.base.push_from_name.unwrap()
+                            + ": "
+                            + group_text_msg.text.as_str(),
+                    );
+                    for room in matrix_client.joined_rooms() {
+                        if let Some(state) = get_threematrix_room_state(&room).await {
+                            if state.threematrix_threema_group_id == convert_group_id_to_readable_string(&group_text_msg.group_id) {
+                                let txn_id = TransactionId::new();
+                                room.send(content.clone(), Some(&txn_id)).await.unwrap();
+                            }
+                        }
+                    }
+                }
             }
             Message::GroupCreateMessage(group_create_msg) => {
                 println!(
@@ -105,41 +119,44 @@ pub async fn matrix_incoming_message_handler(
     threema_client: Ctx<ThreemaClient>,
     matrix_client: Client,
 ) -> () {
-    if let Room::Joined(room) = room {
-        if let OriginalSyncMessageLikeEvent {
-            content:
+    match room {
+        Room::Joined(room) => {
+            if let OriginalSyncMessageLikeEvent {
+                content:
                 RoomMessageEventContent {
                     msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
                     ..
                 },
-            sender,
-            ..
-        } = event
-        {
-            println!("incoming message: {}", msg_body);
+                sender,
+                ..
+            } = event
+            {
+                println!("incoming message: {}", msg_body);
 
-            let member = room.get_member(&sender).await.unwrap().unwrap();
-            let name = member
-                .display_name()
-                .unwrap_or_else(|| member.user_id().as_str());
+                if let Some(threematrix_state) = get_threematrix_room_state(&room).await {
+                    println!("state : {:?}", threematrix_state);
 
-            // Filter out messages coming from our own bridge user
-            if sender != matrix_client.user_id().await.unwrap() {
-                let group_id = threema_client
-                    .get_group_id_by_group_name("threematrix")
-                    .await;
-                println!("group_id: {:?}", group_id);
+                    let group_id = convert_group_id_from_readable_string(threematrix_state.threematrix_threema_group_id.as_str());
 
-                if let Some(group_id) = group_id {
-                    threema_client
-                        .send_group_msg_by_group_id(
-                            &(name.to_owned() + ": " + &msg_body),
-                            group_id.as_slice(),
-                        )
-                        .await;
-                    println!("fertig");
-                };
+                    let member = room.get_member(&sender).await.unwrap().unwrap();
+                    let name = member
+                        .display_name()
+                        .unwrap_or_else(|| member.user_id().as_str());
+
+                    // Filter out messages coming from our own bridge user
+                    if sender != matrix_client.user_id().await.unwrap() {
+                        if let Ok(group_id) = group_id {
+                            threema_client
+                                .send_group_msg_by_group_id(
+                                    &(name.to_owned() + ": " + &msg_body),
+                                    group_id.as_slice(),
+                                )
+                                .await;
+                        }
+                    };
+                }
             }
         }
+        _ => {}
     }
 }
