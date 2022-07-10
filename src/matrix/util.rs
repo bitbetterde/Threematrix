@@ -22,7 +22,7 @@ pub async fn set_threematrix_room_state(
         20000,
         6,
     )
-    .await?;
+        .await?;
     debug!("Matrix: Succesfully set room state");
     return Ok(());
 }

@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         &cfg.threema.gateway_own_id,
         &cfg.threema.secret,
         &cfg.threema.private_key,
-    );
+    )?;
 
     let homeserver_url = Url::parse(&cfg.matrix.homeserver_url)?;
     let matrix_client = Client::new(homeserver_url).await?;
@@ -76,8 +76,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 web::post().to(threema_incoming_message_handler),
             )
         })
-        .bind(("127.0.0.1", 8888))?
-        .run(),
+            .bind(("127.0.0.1", 8888))?
+            .run(),
     );
 
     let matrix_server =
