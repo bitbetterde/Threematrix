@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 
 use threema::types::Message;
 
-use crate::matrix::util::{get_threematrix_state, set_threematrix_state, ThreematrixStateEventContent};
+use crate::matrix::util::{get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent};
 use crate::threema::ThreemaClient;
 use crate::threema::util::{convert_group_id_from_readable_string, convert_group_id_to_readable_string};
 
@@ -67,14 +67,14 @@ pub async fn threema_incoming_message_handler(
                 let matrix_client = app_state.matrix_client.lock().await;
 
                 if group_text_msg.text.starts_with("!threematrix") {
-                    let splittet_text: Vec<&str> = group_text_msg.text.split(" ").collect();
+                    let split_text: Vec<&str> = group_text_msg.text.split(" ").collect();
                     let rooms = matrix_client.joined_rooms();
-                    let room = rooms.iter().find(|r| r.room_id() == splittet_text[1]).unwrap(); //TODO
+                    let room = rooms.iter().find(|r| r.room_id() == split_text[1]).unwrap(); //TODO
 
                     let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
                         threematrix_threema_group_id: convert_group_id_to_readable_string(&group_text_msg.group_id)
                     };
-                    set_threematrix_state(content, room).await;
+                    set_threematrix_room_state(content, room).await;
                 } else {
                     let content = RoomMessageEventContent::text_plain(
                         group_text_msg.base.push_from_name.unwrap()
@@ -82,7 +82,7 @@ pub async fn threema_incoming_message_handler(
                             + group_text_msg.text.as_str(),
                     );
                     for room in matrix_client.joined_rooms() {
-                        if let Some(state) = get_threematrix_state(&room).await {
+                        if let Some(state) = get_threematrix_room_state(&room).await {
                             if state.threematrix_threema_group_id == convert_group_id_to_readable_string(&group_text_msg.group_id) {
                                 let txn_id = TransactionId::new();
                                 room.send(content.clone(), Some(&txn_id)).await.unwrap();
@@ -133,7 +133,7 @@ pub async fn matrix_incoming_message_handler(
             {
                 println!("incoming message: {}", msg_body);
 
-                if let Some(threematrix_state) = get_threematrix_state(&room).await {
+                if let Some(threematrix_state) = get_threematrix_room_state(&room).await {
                     println!("state : {:?}", threematrix_state);
 
                     let group_id = convert_group_id_from_readable_string(threematrix_state.threematrix_threema_group_id.as_str());

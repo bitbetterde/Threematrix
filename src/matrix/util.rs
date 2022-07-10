@@ -10,11 +10,11 @@ pub struct ThreematrixStateEventContent {
     pub threematrix_threema_group_id: String,
 }
 
-pub async fn set_threematrix_state(threematrix_state: ThreematrixStateEventContent, room: &Joined) {
+pub async fn set_threematrix_room_state(threematrix_state: ThreematrixStateEventContent, room: &Joined) {
     room.send_state_event(threematrix_state, "").await.unwrap();
 }
 
-pub async fn get_threematrix_state(room: &Joined) -> Option<ThreematrixStateEventContent> {
+pub async fn get_threematrix_room_state(room: &Joined) -> Option<ThreematrixStateEventContent> {
     let sync_state = room.get_state_event_static("")
         .await.unwrap();
     if let Some(raw) = sync_state {
