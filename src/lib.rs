@@ -1,7 +1,7 @@
 use std::fs::read_to_string;
 
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
-use log::{debug, info};
+use log::{debug, error, info};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::Room;
 use matrix_sdk::ruma::events::room::message::{
@@ -26,6 +26,7 @@ use crate::threema::ThreemaClient;
 
 pub mod matrix;
 pub mod threema;
+pub mod util;
 
 pub struct AppState {
     pub threema_client: ThreemaClient,
@@ -87,7 +88,10 @@ pub async fn threema_incoming_message_handler(
                             &group_text_msg.group_id,
                         ),
                     };
-                    set_threematrix_room_state(content, room).await;
+                    if let Err(e) = set_threematrix_room_state(content, room).await {
+                        // Send msg to user
+                        error!("Could not set Matrix room state: {}", e);
+                    };
                 } else {
                     let content = RoomMessageEventContent::text_plain(
                         group_text_msg.base.push_from_name.unwrap()
@@ -95,13 +99,22 @@ pub async fn threema_incoming_message_handler(
                             + group_text_msg.text.as_str(),
                     );
                     for room in matrix_client.joined_rooms() {
-                        if let Some(state) = get_threematrix_room_state(&room).await {
-                            if state.threematrix_threema_group_id
-                                == convert_group_id_to_readable_string(&group_text_msg.group_id)
-                            {
-                                let txn_id = TransactionId::new();
-                                room.send(content.clone(), Some(&txn_id)).await.unwrap();
+                        match get_threematrix_room_state(&room).await {
+                            Ok(None) => debug!(
+                                "Matrix: Room {:?} does not have proper room state",
+                                &room.display_name().await.unwrap_or(
+                                    matrix_sdk::DisplayName::Named("UNKNOWN".to_owned())
+                                )
+                            ),
+                            Ok(Some(state)) => {
+                                if state.threematrix_threema_group_id
+                                    == convert_group_id_to_readable_string(&group_text_msg.group_id)
+                                {
+                                    let txn_id = TransactionId::new();
+                                    room.send(content.clone(), Some(&txn_id)).await.unwrap();
+                                }
                             }
+                            Err(e) => debug!("Matrix: Could not retrieve room state: {}", e),
                         }
                     }
                 }

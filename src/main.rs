@@ -7,6 +7,7 @@ use matrix_sdk::reqwest::Url;
 use matrix_sdk::Client;
 use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
+use std::error::Error;
 use std::process;
 use tokio::sync::Mutex;
 
@@ -17,28 +18,20 @@ use threematrix::{
     ThreematrixConfig,
 };
 
-const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
-const CRATE_NAME: Option<&str> = option_env!("CARGO_CRATE_NAME");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    let mut logger = Logger::try_with_str(format!("{}=info", CRATE_NAME.unwrap()))
-        .unwrap()
-        .start()
-        .unwrap();
-    info!(
-        "Starting Threematrix Server v{}",
-        VERSION.unwrap_or("0.x.x")
-    );
+async fn main() -> Result<(), Box<dyn Error>> {
+    let mut logger = Logger::try_with_str(format!("{}=info", CRATE_NAME))?.start()?;
+    info!("Starting Threematrix Server v{}", VERSION);
 
     let mut signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT])?;
 
     let cfg = ThreematrixConfig::new("./threematrix_cfg.toml");
 
     if let Some(LoggerConfig { level }) = cfg.logger {
-        logger
-            .parse_new_spec(format!("{}={}", CRATE_NAME.unwrap(), level.as_str()).as_str())
-            .expect("Invalid log level");
+        logger.parse_new_spec(format!("{}={}", CRATE_NAME, level.as_str()).as_str())?
     }
 
     let threema_client = ThreemaClient::new(
@@ -47,9 +40,8 @@ async fn main() -> std::io::Result<()> {
         &cfg.threema.private_key,
     );
 
-    let homeserver_url =
-        Url::parse(&cfg.matrix.homeserver_url).expect("Couldn't parse the homeserver URL");
-    let matrix_client = Client::new(homeserver_url).await.unwrap();
+    let homeserver_url = Url::parse(&cfg.matrix.homeserver_url)?;
+    let matrix_client = Client::new(homeserver_url).await?;
 
     let app_state = web::Data::new(AppState {
         threema_client: threema_client.clone(),
@@ -63,8 +55,7 @@ async fn main() -> std::io::Result<()> {
             None,
             Some("command bot"),
         )
-        .await
-        .unwrap();
+        .await?;
 
     // client.sync_once(SyncSettings::default()).await.unwrap();
     matrix_client
