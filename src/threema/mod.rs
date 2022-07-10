@@ -4,6 +4,8 @@ use std::sync::Arc;
 use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage};
 use tokio::sync::Mutex;
 
+use log::{info, debug, warn, error};
+
 use crate::threema::serialization::encrypt_group_sync_req_msg;
 use crate::threema::types::{
     GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage,
@@ -56,7 +58,7 @@ impl ThreemaClient {
             let receiver: Vec<&str> = group.members.iter().map(|str| str.as_str()).collect();
             self.send_group_msg(text, &group.group_creator, group_id, receiver.as_slice()).await;
         } else {
-            eprintln!("group is not saved in cache");
+            warn!("Could not send message to Threema group, because members are unknown (to be expected, when no Threema message has been received, yet)");
         }
     }
 
@@ -69,14 +71,14 @@ impl ThreemaClient {
     ) -> () {
         let api = self.api.lock().await;
         for user_id in receivers {
-            println!("send msg to:{}", user_id);
+            debug!("send msg to:{}", user_id);
             let public_key = api.lookup_pubkey(*user_id).await.unwrap();
             let encrypted_msg =
                 encrypt_group_text_msg(text, group_creator, group_id, &public_key.into(), &api);
 
             match api.send(&user_id, &encrypted_msg, false).await {
-                Ok(msg_id) => println!("Sent. Message id is {}.", msg_id),
-                Err(e) => println!("Could not send message: {:?}", e),
+                Ok(msg_id) => debug!("Sent. Message id is {}.", msg_id),
+                Err(e) => error!("Could not send message: {:?}", e),
             }
         }
     }
@@ -86,8 +88,8 @@ impl ThreemaClient {
         let public_key = api.lookup_pubkey(receiver).await.unwrap();
         let encrypted_message = encrypt_group_sync_req_msg(group_id, &public_key.into(), &api);
         match &api.send(receiver, &encrypted_message, false).await {
-            Ok(msg_id) => println!("Sent. Message id is {}.", msg_id),
-            Err(e) => println!("Could not send message: {:?}", e),
+            Ok(msg_id) => debug!("Sent. Message id is {}.", msg_id),
+            Err(e) => error!("Could not send message: {:?}", e),
         }
     }
 
@@ -95,12 +97,12 @@ impl ThreemaClient {
         &self,
         incoming_message: &IncomingMessage,
     ) -> Result<Message, ()> {
-        println!("Parsed and validated message from request:");
-        println!("  From: {}", incoming_message.from);
-        println!("  Sender nickname: {:?}", incoming_message.nickname);
-        println!("  To: {}", incoming_message.to);
-        println!("  Message ID: {}", incoming_message.message_id);
-        println!("  Timestamp: {}", incoming_message.date);
+        debug!("Parsed and validated message from request:");
+        debug!("  From: {}", incoming_message.from);
+        debug!("  Sender nickname: {:?}", incoming_message.nickname);
+        debug!("  To: {}", incoming_message.to);
+        debug!("  Message ID: {}", incoming_message.message_id);
+        debug!("  Timestamp: {}", incoming_message.date);
 
         let data;
         {
@@ -110,7 +112,7 @@ impl ThreemaClient {
                 .lookup_pubkey(&incoming_message.from)
                 .await
                 .unwrap_or_else(|e| {
-                    eprintln!(
+                    error!(
                         "Could not fetch public key for {}: {:?}",
                         &incoming_message.from, e
                     );
@@ -121,12 +123,12 @@ impl ThreemaClient {
             data = api
                 .decrypt_incoming_message(&incoming_message, &pubkey)
                 .unwrap_or_else(|e| {
-                    println!("Could not decrypt box: {:?}", e);
+                    error!("Could not decrypt box: {:?}", e);
                     std::process::exit(1);
                 });
         }
         let message_type: u8 = &data[0] & 0xFF;
-        println!("  MessageType: {:#02x}", message_type);
+        debug!("  MessageType: {:#02x}", message_type);
 
         let base = MessageBase {
             from_identity: incoming_message.from.clone(),
@@ -139,7 +141,7 @@ impl ThreemaClient {
         match MessageType::from(message_type) {
             MessageType::Text => {
                 let text = String::from_utf8(data[MESSAGE_TYPE_NUM_BYTES..].to_vec()).unwrap();
-                println!("  text: {}", text);
+                debug!("  text: {}", text);
                 return Ok(Message::TextMessage(TextMessage { base, text }));
             }
             MessageType::GroupText => {
@@ -157,14 +159,14 @@ impl ThreemaClient {
                     .unwrap();
 
                 // Show result
-                println!("  GroupCreator: {}", group_creator);
-                println!("  groupId: {:?}", group_id);
-                println!("  text: {}", text);
+                debug!("  GroupCreator: {}", group_creator);
+                debug!("  groupId: {:?}", group_id);
+                debug!("  text: {}", text);
 
                 {
                     let groups = self.groups.lock().await;
                     if let None = groups.get(group_id) {
-                        println!("Unknown group, sending sync req");
+                        debug!("Unknown group, sending sync req");
                         self.send_group_sync_req_msg(group_id, group_creator.as_str())
                             .await;
                     }
@@ -230,7 +232,7 @@ impl ThreemaClient {
                     }
                 } else {
                     let mut groups = self.groups.lock().await;
-                    println!("Leaving group");
+                    info!("Leaving group");
                     groups.remove(group_id);
                 }
 
@@ -273,8 +275,8 @@ impl ThreemaClient {
             // MessageType::File => {}
             // MessageType::DeliveryReceipt => {}
             _ => {
-                println!("Unknown message type received");
-                println!("  content: {:?}", &data[1..]);
+                info!("Unknown message type received");
+                info!("  content: {:?}", &data[1..]);
                 Err(())
             }
         }

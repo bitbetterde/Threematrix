@@ -1,37 +1,54 @@
-use std::process;
-use actix_web::{App, HttpServer, web};
+use actix_web::{web, App, HttpServer};
+use flexi_logger::Logger;
 use futures::stream::StreamExt;
-use matrix_sdk::Client;
+use log::info;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::reqwest::Url;
+use matrix_sdk::Client;
 use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
+use std::process;
 use tokio::sync::Mutex;
 
-use threematrix::{
-    AppState, matrix_incoming_message_handler, threema_incoming_message_handler, ThreematrixConfig,
-};
 use threematrix::matrix::on_stripped_state_member;
 use threematrix::threema::ThreemaClient;
+use threematrix::{
+    matrix_incoming_message_handler, threema_incoming_message_handler, AppState, LoggerConfig,
+    ThreematrixConfig,
+};
+
+const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
+const CRATE_NAME: Option<&str> = option_env!("CARGO_CRATE_NAME");
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("Starting Threematrix Server");
-    let mut signals = Signals::new(&[
-        SIGTERM,
-        SIGINT,
-        SIGQUIT,
-    ])?;
+    let mut logger = Logger::try_with_str(format!("{}=info", CRATE_NAME.unwrap()))
+        .unwrap()
+        .start()
+        .unwrap();
+    info!(
+        "Starting Threematrix Server v{}",
+        VERSION.unwrap_or("0.x.x")
+    );
 
+    let mut signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT])?;
 
     let cfg = ThreematrixConfig::new("./threematrix_cfg.toml");
+
+    if let Some(LoggerConfig { level }) = cfg.logger {
+        logger
+            .parse_new_spec(format!("{}={}", CRATE_NAME.unwrap(), level.as_str()).as_str())
+            .expect("Invalid log level");
+    }
+
     let threema_client = ThreemaClient::new(
         &cfg.threema.gateway_own_id,
         &cfg.threema.secret,
         &cfg.threema.private_key,
     );
 
-    let homeserver_url = Url::parse(&cfg.matrix.homeserver_url).expect("Couldn't parse the homeserver URL");
+    let homeserver_url =
+        Url::parse(&cfg.matrix.homeserver_url).expect("Couldn't parse the homeserver URL");
     let matrix_client = Client::new(homeserver_url).await.unwrap();
 
     let app_state = web::Data::new(AppState {
@@ -40,7 +57,12 @@ async fn main() -> std::io::Result<()> {
     });
 
     matrix_client
-        .login(&cfg.matrix.user, &cfg.matrix.password, None, Some("command bot"))
+        .login(
+            &cfg.matrix.user,
+            &cfg.matrix.password,
+            None,
+            Some("command bot"),
+        )
         .await
         .unwrap();
 
@@ -56,19 +78,19 @@ async fn main() -> std::io::Result<()> {
 
     // let settings = SyncSettings::default().token(client.sync_token().await.unwrap());
 
-    let threema_server = tokio::spawn(HttpServer::new(move || {
-        App::new().app_data(app_state.clone()).route(
-            "/callback",
-            web::post().to(threema_incoming_message_handler),
-        )
-    })
+    let threema_server = tokio::spawn(
+        HttpServer::new(move || {
+            App::new().app_data(app_state.clone()).route(
+                "/callback",
+                web::post().to(threema_incoming_message_handler),
+            )
+        })
         .bind(("127.0.0.1", 8888))?
-        .run());
+        .run(),
+    );
 
-
-    let matrix_server = tokio::spawn(async move {
-        matrix_client.sync(SyncSettings::default()).await
-    });
+    let matrix_server =
+        tokio::spawn(async move { matrix_client.sync(SyncSettings::default()).await });
 
     while let Some(signal) = signals.next().await {
         match signal {

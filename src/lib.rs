@@ -1,23 +1,28 @@
 use std::fs::read_to_string;
 
-use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
-use matrix_sdk::Client;
+use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
+use log::{debug, info};
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::room::{Room};
-use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
+use matrix_sdk::room::Room;
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, TextMessageEventContent,
 };
+use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::TransactionId;
+use matrix_sdk::Client;
 use serde_derive::{Deserialize, Serialize};
 use threema_gateway::IncomingMessage;
 use tokio::sync::Mutex;
 
 use threema::types::Message;
 
-use crate::matrix::util::{get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent};
+use crate::matrix::util::{
+    get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent,
+};
+use crate::threema::util::{
+    convert_group_id_from_readable_string, convert_group_id_to_readable_string,
+};
 use crate::threema::ThreemaClient;
-use crate::threema::util::{convert_group_id_from_readable_string, convert_group_id_to_readable_string};
 
 pub mod matrix;
 pub mod threema;
@@ -42,9 +47,15 @@ pub struct MatrixConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LoggerConfig {
+    pub level: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreematrixConfig {
     pub threema: ThreemaConfig,
     pub matrix: MatrixConfig,
+    pub logger: Option<LoggerConfig>,
 }
 
 impl ThreematrixConfig {
@@ -72,7 +83,9 @@ pub async fn threema_incoming_message_handler(
                     let room = rooms.iter().find(|r| r.room_id() == split_text[1]).unwrap(); //TODO
 
                     let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
-                        threematrix_threema_group_id: convert_group_id_to_readable_string(&group_text_msg.group_id)
+                        threematrix_threema_group_id: convert_group_id_to_readable_string(
+                            &group_text_msg.group_id,
+                        ),
                     };
                     set_threematrix_room_state(content, room).await;
                 } else {
@@ -83,7 +96,9 @@ pub async fn threema_incoming_message_handler(
                     );
                     for room in matrix_client.joined_rooms() {
                         if let Some(state) = get_threematrix_room_state(&room).await {
-                            if state.threematrix_threema_group_id == convert_group_id_to_readable_string(&group_text_msg.group_id) {
+                            if state.threematrix_threema_group_id
+                                == convert_group_id_to_readable_string(&group_text_msg.group_id)
+                            {
                                 let txn_id = TransactionId::new();
                                 room.send(content.clone(), Some(&txn_id)).await.unwrap();
                             }
@@ -92,13 +107,13 @@ pub async fn threema_incoming_message_handler(
                 }
             }
             Message::GroupCreateMessage(group_create_msg) => {
-                println!(
+                info!(
                     "Got group create message with members: {:?}",
                     group_create_msg.members
                 );
             }
             Message::GroupRenameMessage(group_rename_msg) => {
-                println!(
+                info!(
                     "Got group rename message for: {:?}",
                     group_rename_msg.group_name
                 );
@@ -123,20 +138,22 @@ pub async fn matrix_incoming_message_handler(
         Room::Joined(room) => {
             if let OriginalSyncMessageLikeEvent {
                 content:
-                RoomMessageEventContent {
-                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                    ..
-                },
+                    RoomMessageEventContent {
+                        msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                        ..
+                    },
                 sender,
                 ..
             } = event
             {
-                println!("incoming message: {}", msg_body);
+                debug!("incoming message: {}", msg_body);
 
                 if let Some(threematrix_state) = get_threematrix_room_state(&room).await {
-                    println!("state : {:?}", threematrix_state);
+                    debug!("state : {:?}", threematrix_state);
 
-                    let group_id = convert_group_id_from_readable_string(threematrix_state.threematrix_threema_group_id.as_str());
+                    let group_id = convert_group_id_from_readable_string(
+                        threematrix_state.threematrix_threema_group_id.as_str(),
+                    );
 
                     let member = room.get_member(&sender).await.unwrap().unwrap();
                     let name = member

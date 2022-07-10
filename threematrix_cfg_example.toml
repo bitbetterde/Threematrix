@@ -7,3 +7,6 @@ gateway_own_id ="*CUSTOM1"
 homeserver_url = "https://matrix.myserver.com"
 user = "myuser"
 password = "abc123"
+
+[logger]
+level = "info"
