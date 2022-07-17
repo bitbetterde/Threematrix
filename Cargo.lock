@@ -2577,6 +2577,7 @@ dependencies = [
  "serde_derive",
  "signal-hook",
  "signal-hook-tokio",
+ "thiserror",
  "threema-gateway",
  "tokio",
  "toml",
