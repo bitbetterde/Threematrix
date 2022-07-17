@@ -5,7 +5,7 @@ use threema_gateway::errors::{ApiError, CryptoError};
 
 #[derive(Debug, Error)]
 pub enum SendGroupMessageError {
-    #[error("Members of group are unknown, because we haven't received any message in this group yet.")]
+    #[error("Members of group are unknown, because we haven't received any message in this group yet. Try sending a Threema message first.")]
     GroupNotInCache,
     #[error("{0}")]
     ApiError(ApiError),

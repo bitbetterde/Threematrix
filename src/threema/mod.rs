@@ -122,11 +122,11 @@ impl ThreemaClient {
         &self,
         incoming_message: &IncomingMessage,
     ) -> Result<Message, ProcessIncomingMessageError> {
-        debug!("Threema: Parsed and validated message from request:");
-        debug!("Threema: From: {}", incoming_message.from);
-        debug!("Threema: Sender nickname: {:?}", incoming_message.nickname);
-        debug!("Threema: To: {}", incoming_message.to);
-        debug!("Threema: Timestamp: {}", incoming_message.date);
+        // debug!("Threema: Parsed and validated message from request: ");
+        // debug!("Threema: From: {}", incoming_message.from);
+        // debug!("Threema: Sender nickname: {:?}", incoming_message.nickname);
+        // debug!("Threema: To: {}", incoming_message.to);
+        // debug!("Threema: Timestamp: {}", incoming_message.date);
 
         let data;
         {
@@ -141,7 +141,7 @@ impl ThreemaClient {
                 .map_err(|e| ProcessIncomingMessageError::CryptoError(e))?;
         }
         let message_type: u8 = &data[0] & 0xFF;
-        debug!("Threema: MessageType: {:#02x}", message_type);
+        debug!("Threema: Parsed and validated message from request:\nFrom: {}\nSender nickname: {:?}\nTo: {}\nTimestamp: {}\nMessage type: {:#02x}", incoming_message.from,incoming_message.nickname,incoming_message.to,incoming_message.date, message_type);
 
         let base = MessageBase {
             from_identity: incoming_message.from.clone(),
@@ -173,9 +173,10 @@ impl ThreemaClient {
                 .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
 
                 // Show result
-                debug!("Threema: GroupCreator: {}", group_creator);
-                debug!("Threema: groupId: {:?}", group_id);
-                debug!("Threema: text: {}", text);
+                debug!(
+                    "Threema: GroupCreator: {}\ngroupId: {:?}\ntext: {}",
+                    group_creator, group_id, text
+                );
 
                 {
                     let groups = self.groups.lock().await;

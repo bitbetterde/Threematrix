@@ -57,7 +57,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )
         .await?;
 
-    // client.sync_once(SyncSettings::default()).await.unwrap();
+    matrix_client
+        .sync_once(SyncSettings::default())
+        .await
+        .unwrap();
     matrix_client
         .register_event_handler_context(threema_client.clone())
         .register_event_handler(matrix_incoming_message_handler)
@@ -67,7 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .register_event_handler(on_stripped_state_member)
         .await;
 
-    // let settings = SyncSettings::default().token(client.sync_token().await.unwrap());
+    let settings = SyncSettings::default().token(matrix_client.sync_token().await.unwrap());
 
     let threema_server = tokio::spawn(
         HttpServer::new(move || {
@@ -76,12 +79,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 web::post().to(threema_incoming_message_handler),
             )
         })
-            .bind(("127.0.0.1", 8888))?
-            .run(),
+        .bind((
+            cfg.threema.host.unwrap_or("localhost".to_owned()),
+            cfg.threema.port.unwrap_or(443),
+        ))?
+        .run(),
     );
 
-    let matrix_server =
-        tokio::spawn(async move { matrix_client.sync(SyncSettings::default()).await });
+    let matrix_server = tokio::spawn(async move { matrix_client.sync(settings).await });
 
     while let Some(signal) = signals.next().await {
         match signal {
