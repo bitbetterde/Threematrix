@@ -15,8 +15,42 @@ We have been in contact with Threema and have told them how unfortunate the curr
 Both Threema and Matrix are products known for their E2E Encryption capabilities. While "both sides" might offer strong encryption, a messanger bridge is conceptually always a weak point in encryption. To forward messages the bridge needs to decrypt the incoming message and encrypt it again for the outgoing side. This means that the bridge is capable of reading the content of messages passing through it. **Please don't use a bridge for sensitive communication and make sure you know who has access to the bridge server.**
 
 ## Setup instructions
-### Preparation: Getting a Threema Gateway Account and Threema ID
-Sign up for a [Threema Gateway account](https://gateway.threema.ch/en/signup), charge it up with at least 1600 credits (the setup fee to get a Threema ID) and request a new "End-to-End" Threema ID in the backend (enter your desired ID and username and generate a key pair accordint to their instructions – you can leave the URL empty for now).
+
+
+### Getting a Threema Gateway Account and Threema ID
+Sign up for a [Threema Gateway account](https://gateway.threema.ch/en/signup), charge it up with at least 1600 credits (the setup fee to get a Threema ID) and request a new "End-to-End" Threema ID in the backend (enter your desired ID and username and generate a key pair according to their instructions – you can leave the URL empty for now).
+
+### Create Matrix bot account on your Matrix Homeserver
+Sign up for a new user account on your favorite Matrix homeserver, e.g. via Element. Take note of your username and password, you will need to add it to the `threematrix_config.toml` file.
+
+### Set up reverse proxy
+Threema calls a `/callback` HTTPS endpoint on your server, every time you receive a message. So you need to make sure that your server can be reached from the internet via a domain name (IP address will not work, because it needs to have a TLS certificate – which is only available for domain names, not for IP addresses). You need to set up a reverse proxy to accept and terminate TLS connections. As an example, you could use [Caddy](https://caddyserver.com/) as a reverse proxy with the following command:
+
+```
+caddy reverse-proxy --from mydomain.com --to localhost:8888
+```
+
+### Clone repo and build project
+Clone the repository to your server and install rust (we recommend using [rustup](https://rustup.rs/)), then build the binary via `cargo build --release`
+
+### Edit config file
+Add Threema Gateway data (`secret`, `private_key`, `gateway_own_id`) and Matrix config (`homeserver_url`, `user`, `password`) to the config file. See the `threematrix_cfg_example.toml` for example data.
+
+### Run the binary
+From your root folder (the folder where you cloned the repo), run `./target/release/threematrix` and hopefully you should see output like this:
+
+```
+   Compiling threematrix v0.1.0 (/Users/myself/Threematrix)
+    Finished dev [unoptimized + debuginfo] target(s) in 8.88s
+     Running `target/debug/threematrix`
+INFO [threematrix] Starting Threematrix Server v0.1.0. Waiting for Threema callback on localhost:8888
+```
+
+### Invite Bot to the Rooms
+Now you can invite the Threema user to your Threema group, and also invite the bot user to your desired Matrix room. **Also, you need to give the bot user moderator rights (power level >= 50).**
+
+## Bind rooms
+Send `!threematrix bind !a1b2c3:myserver.com` via Threema to bind two rooms together. It is not necessary to rebind after the bridge has crashed or restarted, but it is required to send a Message from the Threema side first. If you don't do this, Matrix messages might get lost – even though the bridge is running.
 
 ## Motivation
 While Threema is a great messenger app for many purposes, it can become difficult to use for larger organizations. The lack of room directories or the limitation of groups only having a single admin user are hard to work around once your organization grows bigger. For users it's very hard to leave Threema behind, even though theoretically it is an Open Source project, because in reality there are very few 3rd-party-integrations of the Threema protocol. We're trying to open Threema up to the world of Matrix.
