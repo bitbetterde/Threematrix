@@ -49,7 +49,7 @@ INFO [threematrix] Starting Threematrix Server v0.1.0. Waiting for Threema callb
 ### Invite Bot to the Rooms
 Now you can invite the Threema user to your Threema group, and also invite the bot user to your desired Matrix room. **Also, you need to give the bot user moderator rights (power level >= 50).**
 
-## Bind rooms
+### Bind rooms
 Send `!threematrix bind !a1b2c3:myserver.com` via Threema to bind two rooms together. It is not necessary to rebind after the bridge has crashed or restarted, but it is required to send a Message from the Threema side first. If you don't do this, Matrix messages might get lost – even though the bridge is running.
 
 ## Motivation
