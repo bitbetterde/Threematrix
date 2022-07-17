@@ -60,7 +60,6 @@ impl ThreemaClient {
                 .await
                 .map_err(|e| SendGroupMessageError::ApiError(e));
         } else {
-            // TODO warn!("Threema: Could not send message to group, because members are unknown (to be expected, when no Threema message has been received, yet)");
             return Err(SendGroupMessageError::GroupNotInCache);
         }
     }
@@ -122,11 +121,6 @@ impl ThreemaClient {
         &self,
         incoming_message: &IncomingMessage,
     ) -> Result<Message, ProcessIncomingMessageError> {
-        // debug!("Threema: Parsed and validated message from request: ");
-        // debug!("Threema: From: {}", incoming_message.from);
-        // debug!("Threema: Sender nickname: {:?}", incoming_message.nickname);
-        // debug!("Threema: To: {}", incoming_message.to);
-        // debug!("Threema: Timestamp: {}", incoming_message.date);
 
         let data;
         {

@@ -341,7 +341,7 @@ pub async fn matrix_incoming_message_handler(
             }
         }
         _ => {
-            //If bot not member of room, ignore incoming message
+            // If bot not member of room, ignore incoming message
         }
     }
 }
