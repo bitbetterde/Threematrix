@@ -3,6 +3,8 @@
 ![Matrix](https://img.shields.io/matrix/threematrix:matrix.org?label=Chat%20on%20Matrix&style=social)
 > Threematrix is a work-in-progress bridge software – written in Rust – between the Threema messenger (based on the Threema Gateway API) and the Matrix protocol. It's currently being funded via the German Prototype Fund.
 
+![threematrix_hero](https://user-images.githubusercontent.com/4677417/179420224-af18f988-34b0-43e5-a9bd-7abbe22f70f4.png)
+
 ## Status
 This project was submitted and accepted for funding via the 11th round of the [German Prototype Fund](https://prototypefund.de/), which aims to fund public interest technologies under open source licenses. The funding period started on **March 1st 2022** and will last for six months until the end of August 2022. The software is currently in Alpha stadium (meaning it can be tested, but shouldn't be used in production, yet).
 
