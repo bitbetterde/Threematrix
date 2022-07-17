@@ -1,0 +1,16 @@
+[threema]
+secret = "abc123"
+private_key = "abcd1234"
+gateway_own_id ="*CUSTOM1"
+# Optional (Default is 443)
+port = 8888
+# Optional (Default is localhost)
+host = localhost
+
+[matrix]
+homeserver_url = "https://matrix.myserver.com"
+user = "myuser"
+password = "abc123"
+
+[logger]
+level = "info"
