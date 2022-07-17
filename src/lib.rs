@@ -1,7 +1,7 @@
 use std::fs::read_to_string;
 
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::Room;
 use matrix_sdk::ruma::events::room::message::{
@@ -71,8 +71,8 @@ pub async fn threema_incoming_message_handler(
     incoming_message: web::Form<IncomingMessage>,
     app_state: web::Data<AppState>,
 ) -> impl Responder {
-    let client = &app_state.threema_client;
-    let decrypted_message = client.process_incoming_msg(&incoming_message).await;
+    let threema_client = &app_state.threema_client;
+    let decrypted_message = threema_client.process_incoming_msg(&incoming_message).await;
 
     match decrypted_message {
         Ok(message) => match message {
@@ -81,24 +81,55 @@ pub async fn threema_incoming_message_handler(
 
                 if group_text_msg.text.starts_with("!threematrix") {
                     let split_text: Vec<&str> = group_text_msg.text.split(" ").collect();
-                    let rooms = matrix_client.joined_rooms();
-                    let room = rooms.iter().find(|r| r.room_id() == split_text[1]).unwrap(); //TODO
+                    match split_text.get(1).map(|str| *str) {
+                        Some("bind") => {
+                            let rooms = matrix_client.joined_rooms();
+                            let matrix_room_id = split_text.get(2);
 
-                    if let Ok(r) = convert_group_id_to_readable_string(&group_text_msg.group_id) {
-                        let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
-                            threematrix_threema_group_id: r,
-                        };
+                            if let Some(matrix_room_id) = matrix_room_id {
+                                if let Some(room) = rooms.iter().find(|r| r.room_id() == matrix_room_id) {
+                                    if let Ok(r) = convert_group_id_to_readable_string(&group_text_msg.group_id) {
+                                        let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
+                                            threematrix_threema_group_id: r,
+                                        };
 
-                        if let Err(e) = set_threematrix_room_state(content, room).await {
-                            //TODO Send msg to user
-                            error!("Could not set Matrix room state: {}", e);
-                        };
-                    } else {
-                        error!("Threema: Group Id not valid!");
+                                        if let Err(e) = set_threematrix_room_state(content, room).await {
+                                            let err_text = format!("Could not set Matrix room state: {}", e);
+                                            send_error_message_to_threema_group(threema_client, err_text, group_text_msg.group_id.as_slice(), false).await;
+                                        } else {
+                                            let succ_text = format!("Group has been successfully bound to Matrix room: {}", matrix_room_id);
+                                            if let Err(e) = threema_client.send_group_msg_by_group_id(succ_text.as_str(), group_text_msg.group_id.as_slice()).await {
+                                                error!("Threema: Could not send bind text: {}", e)
+                                            }
+                                        };
+                                    } else {
+                                        error!("Threema: Group Id not valid!");
+                                    }
+                                } else {
+                                    let err_text = format!("Matrix room not found. Maybe the bot is not invited or the room id has wrong format!");
+                                    send_error_message_to_threema_group(threema_client, err_text, group_text_msg.group_id.as_slice(), false).await;
+                                }
+                            } else {
+                                let err_text = format!("Missing Matrix room id!");
+                                send_error_message_to_threema_group(threema_client, err_text, group_text_msg.group_id.as_slice(), false).await;
+                            }
+                        }
+                        Some("help") => {
+                            let help_txt =
+                                r#"To bind this Threema Group to a Matrix Room, please use the command "!threematrix bind !abc123:homeserver.org".
+You can find the required room id in your Matrix client. Attention: This is NOT a "human readable" room alias, but an "internal" room id, which consists of random characters."#;
+                            if let Err(e) = threema_client.send_group_msg_by_group_id(help_txt, group_text_msg.group_id.as_slice()).await {
+                                error!("Threema: Could not send help text: {}", e)
+                            }
+                        }
+                        _ => {
+                            let err_text = format!("Command not found! Use *!threematrix help* for more information");
+                            send_error_message_to_threema_group(threema_client, err_text, group_text_msg.group_id.as_slice(), false).await;
+                        }
                     }
                 } else {
                     let content = RoomMessageEventContent::text_plain(
-                        group_text_msg.base.push_from_name.unwrap()
+                        group_text_msg.base.push_from_name.unwrap_or("UNKNOWN".to_owned())
                             + ": "
                             + group_text_msg.text.as_str(),
                     );
@@ -112,15 +143,18 @@ pub async fn threema_incoming_message_handler(
                             ),
                             Ok(Some(state)) => {
                                 if let Ok(group_id) =
-                                    convert_group_id_to_readable_string(&group_text_msg.group_id)
+                                convert_group_id_to_readable_string(&group_text_msg.group_id)
                                 {
                                     if state.threematrix_threema_group_id == group_id {
                                         let txn_id = TransactionId::new();
-                                        room.send(content.clone(), Some(&txn_id)).await.unwrap();
+                                        if let Err(e) = room.send(content.clone(), Some(&txn_id)).await {
+                                            let err_txt = format!("Could not send message to Matrix room: {}", e);
+                                            send_error_message_to_threema_group(threema_client, err_txt, group_text_msg.group_id.as_slice(), true).await;
+                                        }
                                     }
                                 }
                             }
-                            Err(e) => debug!("Matrix: Could not retrieve room state: {}", e),
+                            Err(e) => warn!("Matrix: Could not retrieve room state: {}", e),
                         }
                     }
                 }
@@ -139,15 +173,25 @@ pub async fn threema_incoming_message_handler(
             }
             _ => {}
         },
-
         Err(err) => {
-            debug!("Threema: Incoming Message Error: {}", err);
-        } //TODO Send message to user
+            error!("Threema: Incoming Message Error: {}", err);
+        }
     }
 
     HttpResponse::Ok()
         .content_type(ContentType::plaintext())
         .body(())
+}
+
+async fn send_error_message_to_threema_group(threema_client: &ThreemaClient, err_text: String, group_id: &[u8], log_level_error: bool) {
+    if log_level_error {
+        error!("Threema: {}", err_text);
+    } else {
+        warn!("Threema: {}", err_text);
+    }
+    if let Err(e) = threema_client.send_group_msg_by_group_id(err_text.as_str(), group_id).await {
+        error!("Threema: Could not send error message: \"{}\". {}", err_text, e)
+    }
 }
 
 pub async fn matrix_incoming_message_handler(
@@ -160,10 +204,10 @@ pub async fn matrix_incoming_message_handler(
         Room::Joined(room) => {
             if let OriginalSyncMessageLikeEvent {
                 content:
-                    RoomMessageEventContent {
-                        msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                        ..
-                    },
+                RoomMessageEventContent {
+                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                    ..
+                },
                 sender,
                 ..
             } = event
