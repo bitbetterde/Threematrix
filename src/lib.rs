@@ -3,7 +3,7 @@ use std::fs::read_to_string;
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use log::{debug, error, info, warn};
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::room::Room;
+use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, TextMessageEventContent,
 };
@@ -212,46 +212,68 @@ pub async fn matrix_incoming_message_handler(
                 ..
             } = event
             {
-                debug!("incoming message: {}", msg_body);
+                debug!("Matrix: Incoming message: {}", msg_body);
 
-                match get_threematrix_room_state(&room).await {
-                    Ok(None) => debug!(
-                        "Matrix: Room {:?} does not have proper room state",
-                        &room
+                let sender_member = room.get_member(&sender).await;
+                match sender_member {
+                    Ok(Some(sender_member)) => {
+                        let sender_name = sender_member
                             .display_name()
-                            .await
-                            .unwrap_or(matrix_sdk::DisplayName::Named("UNKNOWN".to_owned()))
-                    ),
-                    Ok(Some(threematrix_state)) => {
-                        let group_id = convert_group_id_from_readable_string(
-                            threematrix_state.threematrix_threema_group_id.as_str(),
-                        );
-
-                        let member = room.get_member(&sender).await.unwrap().unwrap();
-                        let name = member
-                            .display_name()
-                            .unwrap_or_else(|| member.user_id().as_str());
+                            .unwrap_or_else(|| sender_member.user_id().as_str());
 
                         // Filter out messages coming from our own bridge user
                         if sender != matrix_client.user_id().await.unwrap() {
-                            if let Ok(group_id) = group_id {
-                                if let Err(e) = threema_client
-                                    .send_group_msg_by_group_id(
-                                        &(name.to_owned() + ": " + &msg_body),
-                                        group_id.as_slice(),
-                                    )
-                                    .await
-                                {
-                                    error!("Threema: Couldn't send message to Group: {}", e)
-                                    // TODO Send response to Matrix channel
+                            match get_threematrix_room_state(&room).await {
+                                Ok(None) => {
+                                    let err_txt = format!("Room {} does not have proper room state. Have you bound the room to a Threema group?",
+                                                          &room.display_name().await.unwrap_or(matrix_sdk::DisplayName::Named("UNKNOWN".to_owned())));
+                                    send_error_message_to_matrix_room(&room, err_txt, false).await;
+                                }
+                                Ok(Some(threematrix_state)) => {
+                                    let group_id = convert_group_id_from_readable_string(
+                                        threematrix_state.threematrix_threema_group_id.as_str(),
+                                    );
+
+                                    if let Ok(group_id) = group_id {
+                                        if let Err(e) = threema_client
+                                            .send_group_msg_by_group_id(format!("*{}*: {}", sender_name, msg_body).as_str(), group_id.as_slice())
+                                            .await
+                                        {
+                                            let err_txt = format!("Couldn't send message to Threema group: {}", e);
+                                            send_error_message_to_matrix_room(&room, err_txt, true).await;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let err_txt = format!("Could not retrieve room state: {}", e);
+                                    send_error_message_to_matrix_room(&room, err_txt, true).await;
                                 }
                             }
-                        };
+                        }
                     }
-                    Err(e) => debug!("Matrix: Could not retrieve room state: {}", e),
+                    _ => {
+                        error!("Matrix: Could not resolve room member!");
+                    }
                 }
             }
         }
-        _ => {}
+        _ => {
+            //If bot not member of room, ignore incoming message
+        }
+    }
+}
+
+async fn send_error_message_to_matrix_room(room: &Joined, err_txt: String, log_level_err: bool) {
+    if log_level_err {
+        error!("Matrix: {}", err_txt);
+    } else {
+        warn!("Matrix: {}", err_txt);
+    }
+
+    let content = RoomMessageEventContent::text_plain(err_txt.clone());
+    let txn_id = TransactionId::new();
+
+    if let Err(e) = room.send(content, Some(&txn_id)).await {
+        error!("Matrix: Could not send error message: \"{}\". {}", err_txt, e)
     }
 }
