@@ -24,11 +24,16 @@ const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut logger = Logger::try_with_str(format!("{}=info", CRATE_NAME))?.start()?;
-    info!("Starting Threematrix Server v{}", VERSION);
-
-    let mut signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT])?;
 
     let cfg = ThreematrixConfig::new("./threematrix_cfg.toml");
+    info!(
+        "Starting Threematrix Server v{}. Waiting for Threema callback on {}:{}",
+        VERSION,
+        cfg.threema.host.clone().unwrap_or("localhost".to_owned()),
+        cfg.threema.port.clone().unwrap_or(443)
+    );
+
+    let mut signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT])?;
 
     if let Some(LoggerConfig { level }) = cfg.logger {
         logger.parse_new_spec(format!("{}={}", CRATE_NAME, level.as_str()).as_str())?
