@@ -14,7 +14,7 @@ Currently this software is built to work with Threemas commercial Gateway API pr
 We have been in contact with Threema and have told them how unfortunate the current pricing model is for use in a messenger bridge – especially for private/hobbyist use. They seemed to understand our problem and they will think about possible solutions for this problem. We hope that we will be able to find a (more affordable) pricing solution for future use of our bridge.
 
 ## Security Disclaimer
-Both Threema and Matrix are products known for their E2E Encryption capabilities. While "both sides" might offer strong encryption, a messanger bridge is conceptually always a weak point in encryption. To forward messages the bridge needs to decrypt the incoming message and encrypt it again for the outgoing side. This means that the bridge is capable of reading the content of messages passing through it. **Please don't use a bridge for sensitive communication and make sure you know who has access to the bridge server.**
+Both Threema and Matrix are products known for their E2E Encryption capabilities. While "both sides" might offer strong encryption, a messenger bridge is conceptually always a weak point in encryption. To forward messages the bridge needs to decrypt the incoming message and encrypt it again for the outgoing side. This means that the bridge is capable of reading the content of messages passing through it. **Please don't use a bridge for sensitive communication and make sure you know who has access to the bridge server.**
 
 ## Setup instructions
 
@@ -42,9 +42,6 @@ Add Threema Gateway data (`secret`, `private_key`, `gateway_own_id`) and Matrix 
 From your root folder (the folder where you cloned the repo), run `./target/release/threematrix` and hopefully you should see output like this:
 
 ```
-   Compiling threematrix v0.1.0 (/Users/myself/Threematrix)
-    Finished dev [unoptimized + debuginfo] target(s) in 8.88s
-     Running `target/debug/threematrix`
 INFO [threematrix] Starting Threematrix Server v0.1.0. Waiting for Threema callback on localhost:8888
 ```
 
