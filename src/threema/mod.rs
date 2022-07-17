@@ -126,7 +126,6 @@ impl ThreemaClient {
         debug!("Threema: From: {}", incoming_message.from);
         debug!("Threema: Sender nickname: {:?}", incoming_message.nickname);
         debug!("Threema: To: {}", incoming_message.to);
-        debug!("Threema: Message ID: {}", incoming_message.message_id);
         debug!("Threema: Timestamp: {}", incoming_message.date);
 
         let data;
