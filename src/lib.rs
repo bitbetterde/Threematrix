@@ -1,3 +1,4 @@
+use std::env::var;
 use std::fs::read_to_string;
 
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
@@ -64,8 +65,21 @@ pub struct ThreematrixConfig {
 
 impl ThreematrixConfig {
     pub fn new(path: &str) -> ThreematrixConfig {
-        let toml_string = read_to_string(path).unwrap();
-        return toml::from_str(&toml_string).unwrap();
+        let toml_string = read_to_string(path).expect("Could not read config file");
+        let mut config_from_file: ThreematrixConfig =
+            toml::from_str(&toml_string).expect("Could not parse config file");
+
+        // Get host and port from environment (e.g. for Docker use)
+        let host_from_env = var("THREEMATRIX_LISTEN_HOST");
+        let port_from_env = var("THREEMATRIX_LISTEN_PORT");
+        if let Ok(host_from_env) = host_from_env {
+            config_from_file.threema.host = Some(host_from_env)
+        };
+        if let Ok(port_from_env) = port_from_env {
+            config_from_file.threema.port =
+                Some(port_from_env.parse::<u16>().expect("Invalid Port in environment"))
+        };
+        return config_from_file;
     }
 }
 
