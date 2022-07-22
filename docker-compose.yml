@@ -11,25 +11,25 @@ services:
     labels:
       caddy: ${THREEMATRIX_DOMAIN}
       caddy.reverse_proxy: "{{ upstreams ${THREEMATRIX_LISTEN_PORT} }}"
-    networks:
-      - caddy
+    # networks:
+    #   - caddy
 
-  caddy:
-    image: lucaslorentz/caddy-docker-proxy:2.7-alpine
-    container_name: caddy
-    ports:
-      - 80:80
-      - 443:443
-    networks:
-      - caddy
-    environment:
-      - CADDY_INGRESS_NETWORKS=caddy
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - caddy_data:/data
-    restart: unless-stopped
+  # caddy:
+  #   image: lucaslorentz/caddy-docker-proxy:2.7-alpine
+  #   container_name: caddy
+  #   ports:
+  #     - 80:80
+  #     - 443:443
+  #   networks:
+  #     - caddy
+  #   environment:
+  #     - CADDY_INGRESS_NETWORKS=caddy
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - caddy_data:/data
+  #   restart: unless-stopped
 
-volumes:
-  caddy_data:
-networks:
-  caddy:
+# volumes:
+#   caddy_data:
+# networks:
+#   caddy:
