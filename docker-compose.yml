@@ -1,0 +1,36 @@
+version: "3"
+services:
+  threematrix:
+    build: .
+    expose:
+      - ${THREEMATRIX_LISTEN_PORT}
+    env_file: 
+      - .env
+    volumes:
+      - ./threematrix_cfg.toml:/config/threematrix_cfg.toml
+    labels:
+      caddy: ${THREEMATRIX_DOMAIN}
+      caddy.reverse_proxy: "{{ upstreams ${THREEMATRIX_LISTEN_PORT} }}"
+    networks:
+      - caddy
+
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.7-alpine
+    container_name: caddy
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - caddy
+    environment:
+      - CADDY_INGRESS_NETWORKS=threematrix_caddy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - caddy_data:/data
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+networks:
+  caddy:
+    name: threematrix_caddy
