@@ -68,36 +68,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //     )
     //     .await?;
     //
+
+    debug!("Matrix: Successfully logged in");
+
     // matrix_client
     //     .sync_once(SyncSettings::default())
     //     .await
     //     .unwrap();
+
+    debug!("Matrix: Initial sync successful");
+
     // matrix_client
     //     .register_event_handler_context(threema_client.clone())
     //     .register_event_handler(matrix_incoming_message_handler)
     //     .await;
-    //
-    // matrix_client
-    //     .register_event_handler(on_stripped_state_member)
-    //     .await;
-
-<<<<<<< Updated upstream
-    debug!("Matrix: Successfully logged in");
-
-    matrix_client
-        .sync_once(SyncSettings::default())
-        .await
-        .unwrap();
-
-    debug!("Matrix: Initial sync successful");
-
-    matrix_client
-        .register_event_handler_context(threema_client.clone())
-        .register_event_handler(matrix_incoming_message_handler)
-        .await;
-=======
     let virtual_user = appservice.virtual_user(None).await?;
->>>>>>> Stashed changes
 
     virtual_user.add_event_handler_context(appservice.clone());
     virtual_user.add_event_handler_context(threema_client.clone());
