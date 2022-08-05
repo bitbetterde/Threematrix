@@ -13,10 +13,12 @@ use tokio::sync::Mutex;
 
 use threematrix::matrix::on_stripped_state_member;
 use threematrix::threema::ThreemaClient;
-use threematrix::{
-    matrix_incoming_message_handler, threema_incoming_message_handler, AppState, LoggerConfig,
-    ThreematrixConfig,
-};
+use threematrix::{matrix_incoming_message_handler, threema_incoming_message_handler, AppState, LoggerConfig, ThreematrixConfig, handle_room_member};
+
+use matrix_sdk_appservice::{AppService, AppServiceRegistration};
+use matrix_sdk_appservice::matrix_sdk::event_handler::Ctx;
+use matrix_sdk_appservice::matrix_sdk::room::Room;
+use matrix_sdk_appservice::ruma::events::room::member::{OriginalSyncRoomMemberEvent};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
@@ -46,22 +48,40 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     let homeserver_url = Url::parse(&cfg.matrix.homeserver_url)?;
-    let matrix_client = Client::new(homeserver_url).await?;
+    let registration = AppServiceRegistration::try_from_yaml_file("./registration.yaml")?;
+
+    let matrix_client = Client::new(homeserver_url.clone()).await?;
+
+    let mut appservice = AppService::new("http://localhost:8008", "localhost", registration).await?;
 
     let app_state = web::Data::new(AppState {
         threema_client: threema_client.clone(),
         matrix_client: Mutex::new(matrix_client.clone()),
     });
 
-    matrix_client
-        .login(
-            &cfg.matrix.user,
-            &cfg.matrix.password,
-            None,
-            Some("command bot"),
-        )
-        .await?;
+    // matrix_client
+    //     .login(
+    //         &cfg.matrix.user,
+    //         &cfg.matrix.password,
+    //         None,
+    //         Some("command bot"),
+    //     )
+    //     .await?;
+    //
+    // matrix_client
+    //     .sync_once(SyncSettings::default())
+    //     .await
+    //     .unwrap();
+    // matrix_client
+    //     .register_event_handler_context(threema_client.clone())
+    //     .register_event_handler(matrix_incoming_message_handler)
+    //     .await;
+    //
+    // matrix_client
+    //     .register_event_handler(on_stripped_state_member)
+    //     .await;
 
+<<<<<<< Updated upstream
     debug!("Matrix: Successfully logged in");
 
     matrix_client
@@ -75,12 +95,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .register_event_handler_context(threema_client.clone())
         .register_event_handler(matrix_incoming_message_handler)
         .await;
+=======
+    let virtual_user = appservice.virtual_user(None).await?;
+>>>>>>> Stashed changes
 
-    matrix_client
-        .register_event_handler(on_stripped_state_member)
-        .await;
+    virtual_user.add_event_handler_context(appservice.clone());
+    virtual_user.add_event_handler_context(threema_client.clone());
+    virtual_user.add_event_handler(move |event: OriginalSyncRoomMemberEvent,
+                                         room: Room,
+                                         Ctx(appservice): Ctx<AppService>| {
+        handle_room_member(appservice, room, event)
+    }, ).await;
 
-    let settings = SyncSettings::default().token(matrix_client.sync_token().await.unwrap());
+
+    // let settings = SyncSettings::default().token(matrix_client.sync_token().await.unwrap());
 
     let threema_server = tokio::spawn(
         HttpServer::new(move || {
@@ -89,14 +117,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 web::post().to(threema_incoming_message_handler),
             )
         })
-        .bind((
-            cfg.threema.host.unwrap_or("localhost".to_owned()),
-            cfg.threema.port.unwrap_or(443),
-        ))?
-        .run(),
+            .bind((
+                cfg.threema.host.unwrap_or("localhost".to_owned()),
+                cfg.threema.port.unwrap_or(443),
+            ))?
+            .run(),
     );
 
-    let matrix_server = tokio::spawn(async move { matrix_client.sync(settings).await });
+    // let matrix_server = tokio::spawn(async move {
+    //     matrix_client.sync(settings).await
+    // });
+
+    let matrix_server = tokio::spawn(async move {
+        let (host, port) = appservice.registration().get_host_and_port().unwrap();
+        appservice.run(host, port).await.unwrap();
+    });
+
 
     while let Some(signal) = signals.next().await {
         match signal {

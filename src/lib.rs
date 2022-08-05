@@ -1,29 +1,35 @@
 use std::env::var;
 use std::fs::read_to_string;
 
-use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
-use log::{debug, error, info, warn};
+use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
+use log::{debug, error, info, trace, warn};
+use matrix_sdk::Client;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::room::{Joined, Room};
+// use matrix_sdk::room::{Joined, Room};
+use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, TextMessageEventContent,
 };
-use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk::ruma::TransactionId;
-use matrix_sdk::Client;
+use matrix_sdk_appservice::AppService;
+use matrix_sdk_appservice::matrix_sdk::HttpError;
+use matrix_sdk_appservice::matrix_sdk::room::{Joined, Room};
+use matrix_sdk_appservice::ruma::api::client::{uiaa::UiaaResponse, error::ErrorKind};
+use matrix_sdk_appservice::ruma::api::error::{FromHttpResponseError, ServerError};
+use matrix_sdk_appservice::ruma::events::room::member::{MembershipState, OriginalSyncRoomMemberEvent};
+use matrix_sdk_appservice::ruma::UserId;
 use serde_derive::{Deserialize, Serialize};
 use threema_gateway::IncomingMessage;
 use tokio::sync::Mutex;
-
 use threema::types::Message;
 
 use crate::matrix::util::{
     get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent,
 };
+use crate::threema::ThreemaClient;
 use crate::threema::util::{
     convert_group_id_from_readable_string, convert_group_id_to_readable_string,
 };
-use crate::threema::ThreemaClient;
 
 pub mod errors;
 pub mod matrix;
@@ -104,7 +110,7 @@ pub async fn threema_incoming_message_handler(
 
                             if let Some(matrix_room_id) = matrix_room_id {
                                 if let Some(room) =
-                                    rooms.iter().find(|r| r.room_id() == matrix_room_id)
+                                rooms.iter().find(|r| r.room_id() == matrix_room_id)
                                 {
                                     if let Ok(r) = convert_group_id_to_readable_string(
                                         &group_text_msg.group_id,
@@ -115,7 +121,7 @@ pub async fn threema_incoming_message_handler(
                                             };
 
                                         if let Err(e) =
-                                            set_threematrix_room_state(content, room).await
+                                        set_threematrix_room_state(content, room).await
                                         {
                                             let err_text =
                                                 format!("Could not set Matrix room state: {}", e);
@@ -125,7 +131,7 @@ pub async fn threema_incoming_message_handler(
                                                 group_text_msg.group_id.as_slice(),
                                                 false,
                                             )
-                                            .await;
+                                                .await;
                                         } else {
                                             let succ_text = format!("Group has been successfully bound to Matrix room: {}", matrix_room_id);
                                             if let Err(e) = threema_client
@@ -149,7 +155,7 @@ pub async fn threema_incoming_message_handler(
                                         group_text_msg.group_id.as_slice(),
                                         false,
                                     )
-                                    .await;
+                                        .await;
                                 }
                             } else {
                                 let err_text = format!("Missing Matrix room id!");
@@ -159,7 +165,7 @@ pub async fn threema_incoming_message_handler(
                                     group_text_msg.group_id.as_slice(),
                                     false,
                                 )
-                                .await;
+                                    .await;
                             }
                         }
                         Some("help") => {
@@ -185,7 +191,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                 group_text_msg.group_id.as_slice(),
                                 false,
                             )
-                            .await;
+                                .await;
                         }
                     }
                 } else {
@@ -211,12 +217,12 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                             ),
                             Ok(Some(state)) => {
                                 if let Ok(group_id) =
-                                    convert_group_id_to_readable_string(&group_text_msg.group_id)
+                                convert_group_id_to_readable_string(&group_text_msg.group_id)
                                 {
                                     if state.threematrix_threema_group_id == group_id {
                                         let txn_id = TransactionId::new();
                                         if let Err(e) =
-                                            room.send(content.clone(), Some(&txn_id)).await
+                                        room.send(content.clone(), Some(&txn_id)).await
                                         {
                                             let err_txt = format!(
                                                 "Could not send message to Matrix room: {}",
@@ -228,7 +234,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                                 group_text_msg.group_id.as_slice(),
                                                 true,
                                             )
-                                            .await;
+                                                .await;
                                         }
                                     }
                                 }
@@ -294,10 +300,10 @@ pub async fn matrix_incoming_message_handler(
         Room::Joined(room) => {
             if let OriginalSyncMessageLikeEvent {
                 content:
-                    RoomMessageEventContent {
-                        msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                        ..
-                    },
+                RoomMessageEventContent {
+                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                    ..
+                },
                 sender,
                 ..
             } = event
@@ -312,7 +318,7 @@ pub async fn matrix_incoming_message_handler(
                             .unwrap_or_else(|| sender_member.user_id().as_str());
 
                         // Filter out messages coming from our own bridge user
-                        if sender != matrix_client.user_id().await.unwrap() {
+                        if sender != matrix_client.user_id().unwrap() {
                             match get_threematrix_room_state(&room).await {
                                 Ok(None) => {
                                     let err_txt = format!("Room {} does not have proper room state. Have you bound the room to a Threema group?",
@@ -375,5 +381,36 @@ async fn send_error_message_to_matrix_room(room: &Joined, err_txt: String, log_l
             "Matrix: Could not send error message: \"{}\". {}",
             err_txt, e
         )
+    }
+}
+
+pub async fn handle_room_member(
+    appservice: AppService,
+    room: Room,
+    event: OriginalSyncRoomMemberEvent,
+) -> Result<(), matrix_sdk_appservice::Error> {
+    if !appservice.user_id_is_in_namespace(&event.state_key) {
+        trace!("not an appservice user: {}", event.state_key);
+    } else if let MembershipState::Invite = event.content.membership {
+        let user_id = UserId::parse(event.state_key.as_str())?;
+        if let Err(error) = appservice.register_virtual_user(user_id.localpart(), None).await {
+            error_if_user_not_in_use(error)?;
+        }
+
+        let client = appservice.virtual_user(Some(user_id.localpart())).await?;
+        client.join_room_by_id(room.room_id()).await?;
+    }
+
+    Ok(())
+}
+
+pub fn error_if_user_not_in_use(error: matrix_sdk_appservice::Error) -> Result<(), matrix_sdk_appservice::Error> {
+    match error {
+        // If user is already in use that's OK.
+        matrix_sdk_appservice::Error::Matrix(matrix_sdk::Error::Http(HttpError::UiaaError(
+                                                                         FromHttpResponseError::Server(ServerError::Known(UiaaResponse::MatrixError(error))),
+                                                                     ))) if matches!(error.kind, ErrorKind::UserInUse) => Ok(()),
+        // In all other cases return with an error.
+        error => Err(error),
     }
 }

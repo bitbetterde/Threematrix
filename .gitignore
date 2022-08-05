@@ -2,4 +2,9 @@ target
 threematrix_cfg.toml
 .idea
 .DS_Store
+<<<<<<< Updated upstream
 .env
+=======
+registration.yaml
+
+>>>>>>> Stashed changes
