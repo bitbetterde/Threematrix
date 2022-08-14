@@ -19,7 +19,7 @@ use crate::matrix::util::get_threematrix_room_state;
 use crate::threema::util::convert_group_id_from_readable_string;
 use crate::threema::ThreemaClient;
 
-pub async fn matrix_incoming_message_handler(
+pub async fn matrix_app_service_incoming_message_handler(
     event: OriginalSyncMessageLikeEvent<RoomMessageEventContent>,
     room: Room,
     threema_client: Ctx<ThreemaClient>,

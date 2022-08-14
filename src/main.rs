@@ -16,12 +16,11 @@ use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
 use tokio::sync::Mutex;
 
-use threematrix::incoming_message_handler::matrix_app_service::{
-    handle_room_member, matrix_incoming_message_handler,
-};
+use threematrix::incoming_message_handler::matrix_app_service::{handle_room_member, matrix_app_service_incoming_message_handler};
 use threematrix::incoming_message_handler::threema::threema_incoming_message_handler;
 use threematrix::threema::ThreemaClient;
 use threematrix::{AppState, LoggerConfig, ThreematrixConfig};
+use threematrix::incoming_message_handler::matrix_user::matrix_user_incoming_message_handler;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
@@ -79,7 +78,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         matrix_client
             .register_event_handler_context(threema_client.clone())
-            .register_event_handler(matrix_incoming_message_handler)
+            .register_event_handler(matrix_user_incoming_message_handler)
             .await;
         let settings = SyncSettings::default().token(matrix_client.sync_token().await.unwrap());
 
@@ -96,7 +95,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "fabcity.hamburg",
             registration,
         )
-        .await?;
+            .await?;
 
         let virtual_user = appservice.virtual_user(None).await?;
 
@@ -115,7 +114,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await;
 
         virtual_user
-            .add_event_handler(matrix_incoming_message_handler)
+            .add_event_handler(matrix_app_service_incoming_message_handler)
             .await;
 
         debug!("Matrix: Virtual User Event Handler Added");
@@ -139,8 +138,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 web::post().to(threema_incoming_message_handler),
             )
         })
-        .bind((cfg.threema.host.unwrap(), cfg.threema.port.unwrap()))?
-        .run(),
+            .bind((cfg.threema.host.unwrap(), cfg.threema.port.unwrap()))?
+            .run(),
     );
 
     while let Some(signal) = signals.next().await {

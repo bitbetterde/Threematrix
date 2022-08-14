@@ -18,7 +18,7 @@ use crate::threema::util::{
     convert_group_id_from_readable_string,
 };
 
-pub async fn matrix_incoming_message_handler(
+pub async fn matrix_user_incoming_message_handler(
     event: OriginalSyncMessageLikeEvent<RoomMessageEventContent>,
     room: Room,
     threema_client: Ctx<ThreemaClient>,
@@ -37,13 +37,13 @@ pub async fn matrix_incoming_message_handler(
             } = event
             {
                 debug!("Matrix: Incoming message: {}", msg_body);
-
                 let sender_member = room.get_member(&sender).await;
                 match sender_member {
                     Ok(Some(sender_member)) => {
                         let sender_name = sender_member
                             .display_name()
                             .unwrap_or_else(|| sender_member.user_id().as_str());
+
 
                         // Filter out messages coming from our own bridge user
                         if sender != matrix_client.user_id().unwrap() {
@@ -59,11 +59,10 @@ pub async fn matrix_incoming_message_handler(
                                     );
 
                                     if let Ok(group_id) = group_id {
-                                        if let Err(e) = threema_client
-                                            .send_group_msg_by_group_id(
-                                                format!("*{}*: {}", sender_name, msg_body).as_str(),
-                                                group_id.as_slice(),
-                                            )
+                                        if let Err(e) = threema_client.send_group_msg_by_group_id(
+                                            format!("*{}*: {}", sender_name, msg_body).as_str(),
+                                            group_id.as_slice(),
+                                        )
                                             .await
                                         {
                                             let err_txt = format!(
