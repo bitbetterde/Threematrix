@@ -1,27 +1,23 @@
 use log::{debug, error, trace, warn};
 use matrix_sdk::event_handler::Ctx;
 // use matrix_sdk::room::{Joined, Room};
-use matrix_sdk::ruma::events::room::message::{
-    MessageType, TextMessageEventContent,
-};
+use matrix_sdk::ruma::events::room::message::{MessageType, TextMessageEventContent};
 use matrix_sdk::ruma::TransactionId;
-use matrix_sdk_appservice::AppService;
-use matrix_sdk_appservice::matrix_sdk::HttpError;
 use matrix_sdk_appservice::matrix_sdk::room::{Joined, Room};
+use matrix_sdk_appservice::matrix_sdk::HttpError;
 use matrix_sdk_appservice::ruma::api::client::{error::ErrorKind, uiaa::UiaaResponse};
 use matrix_sdk_appservice::ruma::api::error::{FromHttpResponseError, ServerError};
-use matrix_sdk_appservice::ruma::events::OriginalSyncMessageLikeEvent;
-use matrix_sdk_appservice::ruma::events::room::member::{MembershipState, OriginalSyncRoomMemberEvent};
+use matrix_sdk_appservice::ruma::events::room::member::{
+    MembershipState, OriginalSyncRoomMemberEvent,
+};
 use matrix_sdk_appservice::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk_appservice::ruma::events::OriginalSyncMessageLikeEvent;
 use matrix_sdk_appservice::ruma::UserId;
+use matrix_sdk_appservice::AppService;
 
-use crate::matrix::util::{
-    get_threematrix_room_state,
-};
+use crate::matrix::util::get_threematrix_room_state;
+use crate::threema::util::convert_group_id_from_readable_string;
 use crate::threema::ThreemaClient;
-use crate::threema::util::{
-    convert_group_id_from_readable_string,
-};
 
 pub async fn matrix_incoming_message_handler(
     event: OriginalSyncMessageLikeEvent<RoomMessageEventContent>,
@@ -34,10 +30,10 @@ pub async fn matrix_incoming_message_handler(
         Room::Joined(room) => {
             if let OriginalSyncMessageLikeEvent {
                 content:
-                RoomMessageEventContent {
-                    msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                    ..
-                },
+                    RoomMessageEventContent {
+                        msgtype: MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
+                        ..
+                    },
                 sender,
                 ..
             } = event
@@ -127,7 +123,10 @@ pub async fn handle_room_member(
         trace!("not an appservice user: {}", event.state_key);
     } else if let MembershipState::Invite = event.content.membership {
         let user_id = UserId::parse(event.state_key.as_str())?;
-        if let Err(error) = appservice.register_virtual_user(user_id.localpart(), None).await {
+        if let Err(error) = appservice
+            .register_virtual_user(user_id.localpart(), None)
+            .await
+        {
             error_if_user_not_in_use(error)?;
         }
 
@@ -138,12 +137,14 @@ pub async fn handle_room_member(
     Ok(())
 }
 
-pub fn error_if_user_not_in_use(error: matrix_sdk_appservice::Error) -> Result<(), matrix_sdk_appservice::Error> {
+pub fn error_if_user_not_in_use(
+    error: matrix_sdk_appservice::Error,
+) -> Result<(), matrix_sdk_appservice::Error> {
     match error {
         // If user is already in use that's OK.
         matrix_sdk_appservice::Error::Matrix(matrix_sdk::Error::Http(HttpError::UiaaError(
-                                                                         FromHttpResponseError::Server(ServerError::Known(UiaaResponse::MatrixError(error))),
-                                                                     ))) if matches!(error.kind, ErrorKind::UserInUse) => Ok(()),
+            FromHttpResponseError::Server(ServerError::Known(UiaaResponse::MatrixError(error))),
+        ))) if matches!(error.kind, ErrorKind::UserInUse) => Ok(()),
         // In all other cases return with an error.
         error => Err(error),
     }

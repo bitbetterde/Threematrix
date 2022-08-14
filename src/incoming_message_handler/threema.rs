@@ -1,24 +1,11 @@
-use actix_web::{http::header::ContentType, HttpResponse, Responder, web};
+use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use log::{debug, error, info, warn};
-use matrix_sdk::ruma::events::room::message::{
-    RoomMessageEventContent
-};
-use matrix_sdk::ruma::TransactionId;
-use serde_derive::{Deserialize, Serialize};
 use threema_gateway::IncomingMessage;
-use tokio::sync::Mutex;
 
-
-use crate::{AppState};
 use crate::errors::{BindThreemaGroupToMatrixError, SendToMatrixRoomByThreemaGroupIdError};
-use crate::matrix::util::{
-    get_threematrix_room_state, set_threematrix_room_state, ThreematrixStateEventContent,
-};
-use crate::threema::ThreemaClient;
 use crate::threema::types::Message;
-use crate::threema::util::{
-    convert_group_id_from_readable_string, convert_group_id_to_readable_string,
-};
+use crate::threema::ThreemaClient;
+use crate::AppState;
 
 pub async fn threema_incoming_message_handler(
     incoming_message: web::Form<IncomingMessage>,
@@ -87,7 +74,7 @@ pub async fn threema_incoming_message_handler(
                                     group_text_msg.group_id.as_slice(),
                                     false,
                                 )
-                                    .await;
+                                .await;
                             }
                         }
                         Some("help") => {
@@ -113,7 +100,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                 group_text_msg.group_id.as_slice(),
                                 false,
                             )
-                                .await;
+                            .await;
                         }
                     }
                 } else {
@@ -122,24 +109,33 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                         .push_from_name
                         .unwrap_or("UNKNOWN".to_owned());
 
-                    if let Err(e) = matrix_client.send_message_by_threema_group_id(
-                        &group_text_msg.group_id,
-                        format!("{}: {}", sender_name, group_text_msg.text.as_str()).as_str(),
-                        format!("<strong>{}</strong>: {}", sender_name, group_text_msg.text.as_str()).as_str(),
-                    ).await {
+                    if let Err(e) = matrix_client
+                        .send_message_by_threema_group_id(
+                            &group_text_msg.group_id,
+                            format!("{}: {}", sender_name, group_text_msg.text.as_str()).as_str(),
+                            format!(
+                                "<strong>{}</strong>: {}",
+                                sender_name,
+                                group_text_msg.text.as_str()
+                            )
+                            .as_str(),
+                        )
+                        .await
+                    {
                         match e {
                             SendToMatrixRoomByThreemaGroupIdError::NoRoomForGroupIdFoundError => {
                                 debug!("No Matrix room for Threema group id found. Maybe group is not bound to any room");
                             }
                             SendToMatrixRoomByThreemaGroupIdError::MatrixError(e) => {
-                                let err_txt = format!("Could not send message to Matrix room: {}", e);
+                                let err_txt =
+                                    format!("Could not send message to Matrix room: {}", e);
                                 send_error_message_to_threema_group(
                                     threema_client,
                                     err_txt,
                                     group_text_msg.group_id.as_slice(),
                                     true,
                                 )
-                                    .await;
+                                .await;
                             }
                         }
                     }

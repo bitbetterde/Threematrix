@@ -1,18 +1,17 @@
 use std::env::var;
 use std::fs::read_to_string;
 
-use matrix_sdk::Client;
+use crate::matrix::MatrixClient;
 use serde_derive::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use crate::matrix::MatrixClient;
 
 use crate::threema::ThreemaClient;
 
 pub mod errors;
+pub mod incoming_message_handler;
 pub mod matrix;
 pub mod threema;
 pub mod util;
-pub mod incoming_message_handler;
 
 pub struct AppState {
     pub threema_client: ThreemaClient,
@@ -61,9 +60,21 @@ impl ThreematrixConfig {
             config_from_file.threema.host = Some(host_from_env)
         };
         if let Ok(port_from_env) = port_from_env {
-            config_from_file.threema.port =
-                Some(port_from_env.parse::<u16>().expect("Invalid Port in environment"))
+            config_from_file.threema.port = Some(
+                port_from_env
+                    .parse::<u16>()
+                    .expect("Invalid Port in environment"),
+            )
         };
+        if let None = config_from_file.matrix.mode {
+            config_from_file.matrix.mode = Some("user".to_owned())
+        }
+        if let None = config_from_file.threema.port {
+            config_from_file.threema.port = Some(443)
+        }
+        if let None = config_from_file.threema.host {
+            config_from_file.threema.host = Some("localhost".to_owned())
+        }
         return config_from_file;
     }
 }
