@@ -89,6 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         matrix_server = tokio::spawn(async move { matrix_client.sync(settings).await });
     } else {
+        debug!("Matrix: Starting app service");
         let registration = AppServiceRegistration::try_from_yaml_file("./registration.yaml")?;
         let appservice = AppService::new(
             cfg.matrix.homeserver_url.as_str(),
