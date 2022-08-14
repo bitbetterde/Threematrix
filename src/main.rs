@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let matrix_client = Client::new(homeserver_url.clone()).await?;
 
-    let mut appservice = AppService::new("http://localhost:8008", "localhost", registration).await?;
+    let appservice = AppService::new(cfg.matrix.homeserver_url.as_str(), "fabcity.hamburg", registration).await?;
 
     let app_state = web::Data::new(AppState {
         threema_client: threema_client.clone(),
@@ -86,12 +86,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     virtual_user.add_event_handler_context(appservice.clone());
     virtual_user.add_event_handler_context(threema_client.clone());
+    debug!("Matrix: Init Virtual User");
     virtual_user.add_event_handler(move |event: OriginalSyncRoomMemberEvent,
                                          room: Room,
                                          Ctx(appservice): Ctx<AppService>| {
+        debug!("Matrix: OriginalSyncRoomMemberEvent received");
         handle_room_member(appservice, room, event)
     }, ).await;
 
+    virtual_user.add_event_handler(matrix_incoming_message_handler).await;
+
+    debug!("Matrix: Virtual User Event Handler Added");
 
     // let settings = SyncSettings::default().token(matrix_client.sync_token().await.unwrap());
 
@@ -115,6 +120,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let matrix_server = tokio::spawn(async move {
         let (host, port) = appservice.registration().get_host_and_port().unwrap();
+        debug!("Matrix: Start Server on {}:{}", host, port);
         appservice.run(host, port).await.unwrap();
     });
 
