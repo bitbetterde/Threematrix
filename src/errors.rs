@@ -1,5 +1,6 @@
 use std::num::ParseIntError;
 use std::string::FromUtf8Error;
+use matrix_sdk::Error;
 use thiserror::Error;
 use threema_gateway::errors::{ApiError, CryptoError};
 
@@ -19,21 +20,39 @@ pub enum ProcessIncomingMessageError {
     ApiError(ApiError),
     #[error("{0}")]
     Utf8ConvertError(FromUtf8Error),
-    #[error("Unknown Message Type")]
+    #[error("Unknown message type")]
     UnknownMessageTypeError,
 }
 
 
 #[derive(Debug, Error)]
 pub enum StringifyGroupIdError {
-    #[error("Group Id is empty")]
+    #[error("Group id is empty")]
     EmptyGroupId,
 }
 
 #[derive(Debug, Error)]
 pub enum ParseGroupIdError {
-    #[error("Group Id should consist of 8 x u8 chars, separated by spaces")]
+    #[error("Group id should consist of 8 x u8 chars, separated by spaces")]
     InvalidGroupIdLength,
-    #[error("Group Id chars should be between 0 and 255 : {0}")]
+    #[error("Group id chars should be between 0 and 255 : {0}")]
     EncodingError(ParseIntError),
+}
+
+#[derive(Debug, Error)]
+pub enum SendToMatrixRoomByThreemaGroupIdError {
+    #[error("No Matrix room for group id found.")]
+    NoRoomForGroupIdFoundError,
+    #[error("{0}")]
+    MatrixError(Error),
+}
+
+#[derive(Debug, Error)]
+pub enum BindThreemaGroupToMatrixError {
+    #[error("{0}")]
+    InvalidGroupId(StringifyGroupIdError),
+    #[error("{0}")]
+    MatrixError(Error),
+    #[error("No room found for given room id")]
+    NoRoomForRoomIdFoundError,
 }

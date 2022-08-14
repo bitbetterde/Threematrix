@@ -1,24 +1,26 @@
-use actix_web::{web, App, HttpServer};
+use std::error::Error;
+use std::process;
+
+use actix_web::{App, HttpServer, web};
 use flexi_logger::Logger;
 use futures::stream::StreamExt;
 use log::{debug, info};
+use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::reqwest::Url;
-use matrix_sdk::Client;
-use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
-use signal_hook_tokio::Signals;
-use std::error::Error;
-use std::process;
-use tokio::sync::Mutex;
-
-use threematrix::matrix::on_stripped_state_member;
-use threematrix::threema::ThreemaClient;
-use threematrix::{matrix_incoming_message_handler, threema_incoming_message_handler, AppState, LoggerConfig, ThreematrixConfig, handle_room_member};
-
 use matrix_sdk_appservice::{AppService, AppServiceRegistration};
 use matrix_sdk_appservice::matrix_sdk::event_handler::Ctx;
 use matrix_sdk_appservice::matrix_sdk::room::Room;
-use matrix_sdk_appservice::ruma::events::room::member::{OriginalSyncRoomMemberEvent};
+use matrix_sdk_appservice::ruma::events::room::member::OriginalSyncRoomMemberEvent;
+use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
+use signal_hook_tokio::Signals;
+use tokio::sync::Mutex;
+
+use threematrix::{AppState, LoggerConfig, ThreematrixConfig};
+use threematrix::incoming_message_handler::matrix_app_service::{handle_room_member, matrix_incoming_message_handler};
+use threematrix::incoming_message_handler::threema::threema_incoming_message_handler;
+use threematrix::threema::ThreemaClient;
+use threematrix::matrix::MatrixClient;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
@@ -56,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app_state = web::Data::new(AppState {
         threema_client: threema_client.clone(),
-        matrix_client: Mutex::new(matrix_client.clone()),
+        matrix_client: Mutex::new(Box::new(matrix_client.clone())),
     });
 
     // matrix_client

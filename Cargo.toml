@@ -20,3 +20,4 @@ flexi_logger = "0.22.5"
 thiserror = "1.0.31"
 once_cell = "1.13.0"
 matrix-sdk-appservice = { git = "https://github.com/matrix-org/matrix-rust-sdk.git" }
+async-trait = "0.1.57"

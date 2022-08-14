@@ -1,16 +1,17 @@
 [threema]
 secret = "abc123"
 private_key = "abcd1234"
-gateway_own_id ="*CUSTOM1"
+gateway_own_id = "*CUSTOM1"
 # Optional (Default is 443). This can also be set via env file (env has priority)
 port = 8888
 # Optional (Default is localhost). This can also be set via env file (env has priority)
-host = localhost
+host = "localhost"
 
 [matrix]
 homeserver_url = "https://matrix.myserver.com"
 user = "myuser"
 password = "abc123"
+mode = "user" # "user" | "app_service"
 
 [logger]
 level = "info"
