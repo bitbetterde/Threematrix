@@ -1,5 +1,6 @@
 use crate::errors::{BindThreemaGroupToMatrixError, SendToMatrixRoomByThreemaGroupIdError};
 use async_trait::async_trait;
+use matrix_sdk_appservice::ruma::RoomId;
 
 pub mod util;
 pub mod matrix_client_app_service_impl;
@@ -16,7 +17,7 @@ pub trait MatrixClient {
     async fn bind_threema_group_to_matrix_room(
         &self,
         threema_group_id: &[u8],
-        matrix_room_id: &str,
+        matrix_room_id: &RoomId,
     ) -> Result<(), BindThreemaGroupToMatrixError>;
 }
 

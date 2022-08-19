@@ -53,6 +53,6 @@ pub enum BindThreemaGroupToMatrixError {
     InvalidGroupId(StringifyGroupIdError),
     #[error("{0}")]
     MatrixError(Error),
-    #[error("No room found for given room id")]
-    NoRoomForRoomIdFoundError,
+    #[error("{0}")]
+    NoRoomForRoomIdFoundError(Error),
 }

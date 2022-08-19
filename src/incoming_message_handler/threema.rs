@@ -1,6 +1,7 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use log::{debug, error, info, warn};
 use threema_gateway::IncomingMessage;
+use matrix_sdk::ruma::RoomId;
 
 use crate::errors::{BindThreemaGroupToMatrixError, SendToMatrixRoomByThreemaGroupIdError};
 use crate::threema::types::Message;
@@ -25,6 +26,9 @@ pub async fn threema_incoming_message_handler(
                         Some("bind") => {
                             let matrix_room_id = split_text.get(2);
                             if let Some(matrix_room_id) = matrix_room_id {
+                                let room_id = <&RoomId>::try_from(matrix_room_id)
+                                    .map_err(|e| BindThreemaGroupToMatrixError::MatrixError(e));
+
                                 match matrix_client.bind_threema_group_to_matrix_room(&group_text_msg.group_id, matrix_room_id).await {
                                     Ok(_) => {
                                         let succ_text = format!("Group has been successfully bound to Matrix room: {}", matrix_room_id);

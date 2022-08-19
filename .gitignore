@@ -4,3 +4,4 @@ threematrix_cfg.toml
 .DS_Store
 .env
 registration.yaml
+registration.yml
