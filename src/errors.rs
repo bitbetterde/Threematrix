@@ -1,6 +1,7 @@
 use std::num::ParseIntError;
 use std::string::FromUtf8Error;
-use matrix_sdk::Error;
+use matrix_sdk::{Error, HttpError};
+use matrix_sdk::ruma::IdParseError;
 use thiserror::Error;
 use threema_gateway::errors::{ApiError, CryptoError};
 
@@ -45,6 +46,10 @@ pub enum SendToMatrixRoomByThreemaGroupIdError {
     NoRoomForGroupIdFoundError,
     #[error("{0}")]
     MatrixError(Error),
+    #[error("{0}")]
+    MatrixAppServiceError(matrix_sdk_appservice::Error),
+    #[error("{0}")]
+    MatrixAppServiceHttpError(HttpError),
 }
 
 #[derive(Debug, Error)]
@@ -54,5 +59,9 @@ pub enum BindThreemaGroupToMatrixError {
     #[error("{0}")]
     MatrixError(Error),
     #[error("{0}")]
-    NoRoomForRoomIdFoundError(Error),
+    MatrixAppServiceError(matrix_sdk_appservice::Error),
+    #[error("{0}")]
+    MatrixAppServiceHttpError(HttpError),
+    #[error("{0}")]
+    InvalidMatrixRoomId(IdParseError),
 }

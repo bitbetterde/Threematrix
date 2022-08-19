@@ -1,7 +1,6 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use log::{debug, error, info, warn};
 use threema_gateway::IncomingMessage;
-use matrix_sdk::ruma::RoomId;
 
 use crate::errors::{BindThreemaGroupToMatrixError, SendToMatrixRoomByThreemaGroupIdError};
 use crate::threema::types::Message;
@@ -26,9 +25,6 @@ pub async fn threema_incoming_message_handler(
                         Some("bind") => {
                             let matrix_room_id = split_text.get(2);
                             if let Some(matrix_room_id) = matrix_room_id {
-                                let room_id = <&RoomId>::try_from(matrix_room_id)
-                                    .map_err(|e| BindThreemaGroupToMatrixError::MatrixError(e));
-
                                 match matrix_client.bind_threema_group_to_matrix_room(&group_text_msg.group_id, matrix_room_id).await {
                                     Ok(_) => {
                                         let succ_text = format!("Group has been successfully bound to Matrix room: {}", matrix_room_id);
@@ -44,7 +40,7 @@ pub async fn threema_incoming_message_handler(
                                     }
                                     Err(e) => {
                                         match e {
-                                            BindThreemaGroupToMatrixError::InvalidGroupId(e) => {
+                                            BindThreemaGroupToMatrixError::InvalidGroupId(_) => {
                                                 error!("Threema: Group Id not valid!");
                                             }
                                             BindThreemaGroupToMatrixError::MatrixError(e) => {
@@ -57,8 +53,8 @@ pub async fn threema_incoming_message_handler(
                                                     false,
                                                 ).await;
                                             }
-                                            BindThreemaGroupToMatrixError::NoRoomForRoomIdFoundError => {
-                                                let err_text = format!("Matrix room not found. Maybe the bot is not invited or the room id has wrong format!");
+                                            BindThreemaGroupToMatrixError::InvalidMatrixRoomId(e) => {
+                                                let err_text = format!("Invalid matrix room Id: {}", e);
                                                 send_error_message_to_threema_group(
                                                     threema_client,
                                                     err_text,
@@ -66,6 +62,26 @@ pub async fn threema_incoming_message_handler(
                                                     false,
                                                 )
                                                     .await;
+                                            }
+                                            BindThreemaGroupToMatrixError::MatrixAppServiceError(_) => {
+                                                let err_text =
+                                                    format!("Could not set Matrix room state: {}", e);
+                                                send_error_message_to_threema_group(
+                                                    threema_client,
+                                                    err_text,
+                                                    group_text_msg.group_id.as_slice(),
+                                                    false,
+                                                ).await;
+                                            }
+                                            BindThreemaGroupToMatrixError::MatrixAppServiceHttpError(_) => {
+                                                let err_text =
+                                                    format!("Could not set Matrix room state: {}", e);
+                                                send_error_message_to_threema_group(
+                                                    threema_client,
+                                                    err_text,
+                                                    group_text_msg.group_id.as_slice(),
+                                                    false,
+                                                ).await;
                                             }
                                         }
                                     }
@@ -78,7 +94,7 @@ pub async fn threema_incoming_message_handler(
                                     group_text_msg.group_id.as_slice(),
                                     false,
                                 )
-                                .await;
+                                    .await;
                             }
                         }
                         Some("help") => {
@@ -104,7 +120,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                 group_text_msg.group_id.as_slice(),
                                 false,
                             )
-                            .await;
+                                .await;
                         }
                     }
                 } else {
@@ -116,13 +132,9 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                     if let Err(e) = matrix_client
                         .send_message_by_threema_group_id(
                             &group_text_msg.group_id,
-                            format!("{}: {}", sender_name, group_text_msg.text.as_str()).as_str(),
-                            format!(
-                                "<strong>{}</strong>: {}",
-                                sender_name,
-                                group_text_msg.text.as_str()
-                            )
-                            .as_str(),
+                            sender_name.as_str(),
+                            group_text_msg.text.as_str(),
+                            group_text_msg.text.as_str(),
                         )
                         .await
                     {
@@ -131,15 +143,31 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                 debug!("No Matrix room for Threema group id found. Maybe group is not bound to any room");
                             }
                             SendToMatrixRoomByThreemaGroupIdError::MatrixError(e) => {
-                                let err_txt =
-                                    format!("Could not send message to Matrix room: {}", e);
+                                let err_txt = format!("Could not send message to Matrix room: {}", e);
                                 send_error_message_to_threema_group(
                                     threema_client,
                                     err_txt,
                                     group_text_msg.group_id.as_slice(),
                                     true,
-                                )
-                                .await;
+                                ).await;
+                            }
+                            SendToMatrixRoomByThreemaGroupIdError::MatrixAppServiceError(_) => {
+                                let err_txt = format!("Could not send message to Matrix room: {}", e);
+                                send_error_message_to_threema_group(
+                                    threema_client,
+                                    err_txt,
+                                    group_text_msg.group_id.as_slice(),
+                                    true,
+                                ).await;
+                            }
+                            SendToMatrixRoomByThreemaGroupIdError::MatrixAppServiceHttpError(_) => {
+                                let err_txt = format!("Could not send message to Matrix room: {}", e);
+                                send_error_message_to_threema_group(
+                                    threema_client,
+                                    err_txt,
+                                    group_text_msg.group_id.as_slice(),
+                                    true,
+                                ).await;
                             }
                         }
                     }

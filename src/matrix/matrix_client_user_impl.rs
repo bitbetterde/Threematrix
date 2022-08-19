@@ -6,7 +6,7 @@ use crate::threema::util::convert_group_id_to_readable_string;
 use async_trait::async_trait;
 use log::{debug, warn};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::ruma::TransactionId;
+use matrix_sdk::ruma::{RoomId, TransactionId};
 use matrix_sdk::{Client};
 
 use super::MatrixClient;
@@ -16,10 +16,13 @@ impl MatrixClient for Client {
     async fn send_message_by_threema_group_id(
         &self,
         threema_group_id: &[u8],
+        user_name: &str,
         body: &str,
         html_body: &str,
     ) -> Result<(), SendToMatrixRoomByThreemaGroupIdError> {
-        let content = RoomMessageEventContent::text_html(body, html_body);
+        let content = RoomMessageEventContent::text_html(
+            format!("{}: {}", user_name, body).as_str(),
+            format!("<strong>{}</strong>: {}", user_name, html_body));
         let mut room_found = false;
         for room in self.joined_rooms() {
             match get_threematrix_room_state(&room).await {
@@ -58,29 +61,26 @@ impl MatrixClient for Client {
         threema_group_id: &[u8],
         matrix_room_id: &str,
     ) -> Result<(), BindThreemaGroupToMatrixError> {
-        if let Some(room) = self
-            .joined_rooms()
-            .iter()
-            .find(|r| r.room_id() == matrix_room_id)
-        {
-            match convert_group_id_to_readable_string(&threema_group_id) {
-                Ok(r) => {
-                    let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
-                        threematrix_threema_group_id: r,
-                    };
+        let room_id = <&RoomId>::try_from(matrix_room_id)
+            .map_err(|e| BindThreemaGroupToMatrixError::InvalidMatrixRoomId(e))?;
 
-                    if let Err(e) = set_threematrix_room_state(content, room).await {
-                        return Err(BindThreemaGroupToMatrixError::MatrixError(e));
-                    } else {
-                        return Ok(());
-                    };
-                }
-                Err(e) => {
-                    return Err(BindThreemaGroupToMatrixError::InvalidGroupId(e));
-                }
+        let room = self.get_joined_room(room_id).unwrap();
+
+        match convert_group_id_to_readable_string(&threema_group_id) {
+            Ok(r) => {
+                let content: ThreematrixStateEventContent = ThreematrixStateEventContent {
+                    threematrix_threema_group_id: r,
+                };
+
+                if let Err(e) = set_threematrix_room_state(content, &room).await {
+                    return Err(BindThreemaGroupToMatrixError::MatrixError(e));
+                } else {
+                    return Ok(());
+                };
             }
-        } else {
-            return Err(BindThreemaGroupToMatrixError::NoRoomForRoomIdFoundError);
+            Err(e) => {
+                return Err(BindThreemaGroupToMatrixError::InvalidGroupId(e));
+            }
         }
     }
 }
