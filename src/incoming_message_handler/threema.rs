@@ -133,6 +133,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                         .send_message_by_threema_group_id(
                             &group_text_msg.group_id,
                             sender_name.as_str(),
+                            &group_text_msg.base.from_identity,
                             group_text_msg.text.as_str(),
                             group_text_msg.text.as_str(),
                         )

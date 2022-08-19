@@ -11,6 +11,7 @@ pub trait MatrixClient {
         &self,
         threema_group_id: &[u8],
         user_name: &str,
+        user_id: &str,
         body: &str,
         html_body: &str,
     ) -> Result<(), SendToMatrixRoomByThreemaGroupIdError>;
