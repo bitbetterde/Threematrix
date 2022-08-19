@@ -33,7 +33,9 @@ impl MatrixClient for AppService {
             .await
             .map_err(|e| BindThreemaGroupToMatrixError::MatrixError(e))?;
 
-        let room = client.get_joined_room(room_id).unwrap();
+        let room = client
+            .get_joined_room(matrix_room_id)
+            .map_err(|e| BindThreemaGroupToMatrixError::MatrixError(e))?;
 
         match convert_group_id_to_readable_string(&threema_group_id) {
             Ok(r) => {
