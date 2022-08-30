@@ -1,15 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use threema_gateway::{ApiBuilder, decrypt_blob, E2eApi, IncomingMessage, PublicKey};
+use log::{debug, info};
+use matrix_sdk::ruma::exports::serde_json;
+use threema_gateway::{ApiBuilder, decrypt_file_data, E2eApi, encrypt_file_data, IncomingMessage, PublicKey, RenderingType};
+use threema_gateway::errors::{ApiBuilderError, ApiError};
 use tokio::sync::Mutex;
 
 use crate::errors::{ProcessIncomingMessageError, SendGroupMessageError};
-use log::{debug, info};
-use matrix_sdk::ruma::exports::serde_json;
-use threema_gateway::errors::{ApiBuilderError, ApiError};
-
-use crate::threema::serialization::encrypt_group_sync_req_msg;
+use crate::threema::serialization::{encrypt_group_file_msg, encrypt_group_sync_req_msg};
 use crate::threema::types::{FileMessage, GroupCreateMessage, GroupFileMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
 use crate::util::retry_request;
 
@@ -65,6 +64,25 @@ impl ThreemaClient {
         }
     }
 
+
+    pub async fn send_group_file_by_group_id(
+        &self,
+        file: &[u8],
+        thumbnail: Option<&[u8]>,
+        group_id: &[u8],
+    ) -> Result<(), SendGroupMessageError> {
+        let groups = self.groups.lock().await;
+        if let Some(group) = groups.get(group_id) {
+            let receiver: Vec<&str> = group.members.iter().map(|str| str.as_str()).collect();
+            return self
+                .send_group_file(file, thumbnail, &group.group_creator, group_id, receiver.as_slice())
+                .await
+                .map_err(|e| SendGroupMessageError::ApiError(e));
+        } else {
+            return Err(SendGroupMessageError::GroupNotInCache);
+        }
+    }
+
     pub async fn send_group_msg(
         &self,
         text: &str,
@@ -79,6 +97,54 @@ impl ThreemaClient {
 
             let encrypted_msg =
                 encrypt_group_text_msg(text, group_creator, group_id, &public_key.into(), &api);
+
+            retry_request(
+                || async { api.send(&user_id, &encrypted_msg, false).await },
+                20 * 1000,
+                6,
+            )
+                .await?;
+            debug!("Threema: Message sent successfully");
+        }
+        return Ok(());
+    }
+
+    pub async fn send_group_file(
+        &self,
+        file: &[u8],
+        thumbnail: Option<&[u8]>,
+        group_creator: &str,
+        group_id: &[u8],
+        receivers: &[&str],
+    ) -> Result<(), ApiError> {
+        let (encrypted_file, encrypted_thumb, key) = encrypt_file_data(file, thumbnail);
+
+
+        let api = self.api.lock().await;
+        // Upload files to blob server
+        let file_blob_id = api.blob_upload_raw(&encrypted_file, false).await.unwrap();
+        let thumb_blob_id = if let Some(et) = encrypted_thumb {
+            let blob_id = api.blob_upload_raw(&et, false).await.unwrap();
+            let thumbnail_media_type = mime::IMAGE_JPEG;
+            Some((blob_id, thumbnail_media_type))
+        } else {
+            None
+        };
+        let file_message = threema_gateway::FileMessage::builder(file_blob_id, key, mime::IMAGE_JPEG, file.len() as u32)
+            .thumbnail_opt(thumb_blob_id)
+            .file_name_opt(Some("test.jpg"))
+            .description_opt(None as Option<String>)
+            .rendering_type(RenderingType::Media)
+            .build()
+            .expect("Could not build FileMessage");
+
+
+        for user_id in receivers {
+            debug!("Threema: Sending message to: {}", user_id);
+            let public_key = self.lookup_pubkey_with_retry(user_id, &api).await?; //TODO cache
+
+            let encrypted_msg =
+                encrypt_group_file_msg(&file_message, group_creator, group_id, &public_key.into(), &api);
 
             retry_request(
                 || async { api.send(&user_id, &encrypted_msg, false).await },
@@ -213,7 +279,7 @@ impl ThreemaClient {
                     let api = self.api.lock().await;
                     let file_encrypted = api.blob_download(file_metadata.file_blob_id.as_str()).await.unwrap();
                     let key = hex::decode(file_metadata.blob_encryption_key.as_str()).unwrap();
-                    file = decrypt_blob(&file_encrypted, key.try_into().unwrap()).unwrap();
+                    file = decrypt_file_data(&file_encrypted, key.try_into().unwrap()).unwrap();
                 }
 
                 {
