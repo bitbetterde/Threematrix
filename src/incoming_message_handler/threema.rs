@@ -1,20 +1,10 @@
-use std::io::Cursor;
-
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use log::{debug, error, info, warn};
-use matrix_sdk::attachment::AttachmentConfig;
 use threema_gateway::IncomingMessage;
 
 use crate::{AppState, Message};
 use crate::matrix::errors::{BindThreemaGroupToMatrixError, SendToMatrixRoomByThreemaGroupIdError};
 use crate::matrix::MatrixClient;
-
-use crate::matrix::util::{
-    get_threematrix_room_state,
-};
-use crate::threema::util::{
-    convert_group_id_to_readable_string,
-};
 use crate::threema::ThreemaClient;
 
 pub async fn threema_incoming_message_handler(
@@ -151,6 +141,28 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
 
                 match matrix_client.get_joined_room_by_threema_group_id(&group_file_msg.group_id).await {
                     Ok(room) => {
+                        let file_description = group_file_msg.file_metadata.description.unwrap_or("".to_string());
+                        if let Err(e) = matrix_client
+                            .send_message_to_matrix_room(
+                                &room,
+                                sender_name.as_str(),
+                                file_description.as_str(),
+                                file_description.as_str(),
+                            ).await
+                        {
+                            match e {
+                                SendToMatrixRoomByThreemaGroupIdError::MatrixError(e) => {
+                                    let err_txt = format!("Could not send message to Matrix room: {}", e);
+                                    send_error_message_to_threema_group(
+                                        threema_client,
+                                        err_txt,
+                                        group_file_msg.group_id.as_slice(),
+                                        true,
+                                    ).await;
+                                }
+                            }
+                        }
+
                         if let Err(e) = matrix_client
                             .send_file_to_matrix_room(
                                 &room,
