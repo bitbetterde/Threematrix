@@ -1,17 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use threema_gateway::{ApiBuilder, E2eApi, IncomingMessage, PublicKey};
+use threema_gateway::{ApiBuilder, decrypt_blob, E2eApi, IncomingMessage, PublicKey};
 use tokio::sync::Mutex;
 
 use crate::errors::{ProcessIncomingMessageError, SendGroupMessageError};
 use log::{debug, info};
+use matrix_sdk::ruma::exports::serde_json;
 use threema_gateway::errors::{ApiBuilderError, ApiError};
 
 use crate::threema::serialization::encrypt_group_sync_req_msg;
-use crate::threema::types::{
-    GroupCreateMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage,
-};
+use crate::threema::types::{FileMessage, GroupCreateMessage, GroupFileMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
 use crate::util::retry_request;
 
 use self::serialization::encrypt_group_text_msg;
@@ -30,6 +29,8 @@ pub struct ThreemaClient {
 pub const GROUP_ID_NUM_BYTES: usize = 8;
 pub const GROUP_CREATOR_NUM_BYTES: usize = 8;
 pub const MESSAGE_TYPE_NUM_BYTES: usize = 1;
+pub const BLOB_ID_LEN: usize = 16;
+pub const BLOB_KEY_LEN: usize = 32;
 pub const THREEMA_ID_LENGTH: usize = 8;
 
 impl ThreemaClient {
@@ -84,7 +85,7 @@ impl ThreemaClient {
                 20 * 1000,
                 6,
             )
-            .await?;
+                .await?;
             debug!("Threema: Message sent successfully");
         }
         return Ok(());
@@ -112,7 +113,7 @@ impl ThreemaClient {
             20 * 1000,
             6,
         )
-        .await?;
+            .await?;
         debug!("Threema: Group sync message sent successfully");
         return Ok(());
     }
@@ -121,11 +122,11 @@ impl ThreemaClient {
         &self,
         incoming_message: &IncomingMessage,
     ) -> Result<Message, ProcessIncomingMessageError> {
-
         let data;
+        let pubkey;
         {
             let api = self.api.lock().await;
-            let pubkey = self
+            pubkey = self
                 .lookup_pubkey_with_retry(&incoming_message.from, &api)
                 .await
                 .map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
@@ -157,14 +158,14 @@ impl ThreemaClient {
                     data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES]
                         .to_vec(),
                 )
-                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                    .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
                 let group_id = &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES
                     ..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES];
                 let text = String::from_utf8(
                     data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES + GROUP_ID_NUM_BYTES..]
                         .to_vec(),
                 )
-                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                    .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
 
                 // Show result
                 debug!(
@@ -189,6 +190,49 @@ impl ThreemaClient {
                     group_id: group_id.to_vec(),
                 }));
             }
+            MessageType::GroupFile => {
+                let mut i = MESSAGE_TYPE_NUM_BYTES;
+                let group_creator = String::from_utf8(data[i..i + GROUP_CREATOR_NUM_BYTES].to_vec()).unwrap();
+
+                i = i + GROUP_CREATOR_NUM_BYTES;
+                let group_id = &data[i..i + GROUP_ID_NUM_BYTES];
+
+                i = i + GROUP_ID_NUM_BYTES;
+                let file_data_json = String::from_utf8(data[i..].to_vec()).unwrap();
+                let file_metadata = serde_json::from_str::<FileMessage>(file_data_json.as_str()).unwrap();
+
+
+                // Show result
+                debug!("  GroupCreator: {}", group_creator);
+                debug!("  groupId: {:?}", group_id);
+                debug!("  fileData: {:?}", file_metadata);
+
+
+                let file;
+                {
+                    let api = self.api.lock().await;
+                    let file_encrypted = api.blob_download(file_metadata.file_blob_id.as_str()).await.unwrap();
+                    let key = hex::decode(file_metadata.blob_encryption_key.as_str()).unwrap();
+                    file = decrypt_blob(&file_encrypted, key.try_into().unwrap()).unwrap();
+                }
+
+                {
+                    let groups = self.groups.lock().await;
+                    if let None = groups.get(group_id) {
+                        debug!("Threema: Unknown group, sending sync req");
+                        self.send_group_sync_req_msg(group_id, group_creator.as_str())
+                            .await
+                            .map_err(|e| ProcessIncomingMessageError::ApiError(e))?;
+                    }
+                }
+                return Ok(Message::GroupFileMessage(GroupFileMessage {
+                    base,
+                    file_metadata,
+                    group_creator,
+                    group_id: group_id.to_vec(),
+                    file,
+                }));
+            }
             MessageType::GroupCreate => {
                 let group_id =
                     &data[MESSAGE_TYPE_NUM_BYTES..MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES];
@@ -199,8 +243,8 @@ impl ThreemaClient {
                 for char in &data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..] {
                     current_member_id = current_member_id
                         + String::from_utf8(vec![*char])
-                            .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?
-                            .as_str();
+                        .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?
+                        .as_str();
                     counter = counter + 1;
                     if counter == THREEMA_ID_LENGTH {
                         members.insert(current_member_id.clone());
@@ -262,7 +306,7 @@ impl ThreemaClient {
                 let group_name = String::from_utf8(
                     data[MESSAGE_TYPE_NUM_BYTES + GROUP_CREATOR_NUM_BYTES..].to_vec(),
                 )
-                .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
+                    .map_err(|e| ProcessIncomingMessageError::Utf8ConvertError(e))?;
 
                 {
                     let mut groups = self.groups.lock().await;
