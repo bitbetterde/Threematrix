@@ -2553,6 +2553,7 @@ dependencies = [
 [[package]]
 name = "threema-gateway"
 version = "0.15.1"
+source = "git+https://github.com/bitbetterde/threema-gateway-rs.git#410c26030c8b4cd03418f9e769011000203a5079"
 dependencies = [
  "byteorder",
  "data-encoding",
@@ -2569,7 +2570,7 @@ dependencies = [
 
 [[package]]
 name = "threematrix"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix-web",
  "async-trait",
