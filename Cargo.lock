@@ -2573,8 +2573,6 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "async-trait",
- "bytes",
- "data-encoding",
  "flexi_logger",
  "futures",
  "hex",
@@ -2582,7 +2580,6 @@ dependencies = [
  "matrix-sdk",
  "mime",
  "rand 0.8.5",
- "reqwest",
  "serde",
  "serde_derive",
  "serde_json",

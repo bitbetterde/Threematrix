@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use log::{debug, info};
 use matrix_sdk::ruma::exports::serde_json;
+use mime::Mime;
 use threema_gateway::{ApiBuilder, decrypt_file_data, E2eApi, encrypt_file_data, IncomingMessage, PublicKey, RenderingType};
 use threema_gateway::errors::{ApiBuilderError, ApiError};
 use tokio::sync::Mutex;
@@ -69,13 +70,16 @@ impl ThreemaClient {
         &self,
         file: &[u8],
         thumbnail: Option<&[u8]>,
+        description: Option<&str>,
+        file_name: &str,
+        mime: Mime,
         group_id: &[u8],
     ) -> Result<(), SendGroupMessageError> {
         let groups = self.groups.lock().await;
         if let Some(group) = groups.get(group_id) {
             let receiver: Vec<&str> = group.members.iter().map(|str| str.as_str()).collect();
             return self
-                .send_group_file(file, thumbnail, &group.group_creator, group_id, receiver.as_slice())
+                .send_group_file(file, thumbnail, description, file_name, mime, &group.group_creator, group_id, receiver.as_slice())
                 .await
                 .map_err(|e| SendGroupMessageError::ApiError(e));
         } else {
@@ -113,6 +117,9 @@ impl ThreemaClient {
         &self,
         file: &[u8],
         thumbnail: Option<&[u8]>,
+        description: Option<&str>,
+        file_name: &str,
+        mime: Mime,
         group_creator: &str,
         group_id: &[u8],
         receivers: &[&str],
@@ -125,15 +132,14 @@ impl ThreemaClient {
         let file_blob_id = api.blob_upload_raw(&encrypted_file, false).await.unwrap();
         let thumb_blob_id = if let Some(et) = encrypted_thumb {
             let blob_id = api.blob_upload_raw(&et, false).await.unwrap();
-            let thumbnail_media_type = mime::IMAGE_JPEG;
-            Some((blob_id, thumbnail_media_type))
+            Some((blob_id, mime.clone()))
         } else {
             None
         };
-        let file_message = threema_gateway::FileMessage::builder(file_blob_id, key, mime::IMAGE_JPEG, file.len() as u32)
+        let file_message = threema_gateway::FileMessage::builder(file_blob_id, key, mime, file.len() as u32)
             .thumbnail_opt(thumb_blob_id)
-            .file_name_opt(Some("test.jpg"))
-            .description_opt(None as Option<String>)
+            .file_name_opt(Some(file_name))
+            .description_opt(description)
             .rendering_type(RenderingType::Media)
             .build()
             .expect("Could not build FileMessage");

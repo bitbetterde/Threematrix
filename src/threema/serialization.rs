@@ -1,6 +1,3 @@
-use std::iter::repeat;
-
-use rand::Rng;
 use threema_gateway::{E2eApi, EncryptedMessage, FileMessage, RecipientKey};
 
 use crate::threema::types::MessageType;

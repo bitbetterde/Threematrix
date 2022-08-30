@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use log::{debug, error, info, warn};
 use matrix_sdk::{Client, ruma::events::room::member::StrippedRoomMemberEvent};
 use matrix_sdk::event_handler::Ctx;
@@ -6,8 +7,7 @@ use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::{TransactionId, UInt};
 use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
 use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
-use matrix_sdk::ruma::events::room::message::{ImageMessageEventContent, MessageType, RoomMessageEventContent, TextMessageEventContent};
-use threema_gateway::encrypt_file_data;
+use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent, TextMessageEventContent};
 use tokio::time::{Duration, sleep};
 
 use crate::matrix::util::get_threematrix_room_state;
@@ -116,12 +116,22 @@ pub async fn matrix_incoming_message_handler(
 
                                             if let Ok(group_id) = group_id {
                                                 let image_file = matrix_client.get_file(image.clone(), false).await.unwrap().unwrap();
-                                                let thumbnail = matrix_client.get_thumbnail(image, MediaThumbnailSize { height: UInt::new(400).unwrap(), width: UInt::new(400).unwrap(), method: Method::Scale }, false).await.unwrap().unwrap();
+                                                let thumbnail = matrix_client.get_thumbnail(image.clone(), MediaThumbnailSize { height: UInt::new(400).unwrap(), width: UInt::new(400).unwrap(), method: Method::Scale }, false).await.unwrap().unwrap();
 
+                                                let mime = mime::Mime::from_str(image.info.unwrap().mimetype.unwrap().as_ref()).unwrap();
+
+                                                let description = format!("*{}*: {}", sender_name, &image.body);
                                                 debug!("Matrix image size: {} bytes", image_file.len());
                                                 debug!("Matrix thumbnail size: {} bytes", thumbnail.len());
 
-                                                threema_client.send_group_file_by_group_id(&image_file, Some(&thumbnail), &group_id).await.unwrap();
+                                                threema_client.send_group_file_by_group_id(
+                                                    &image_file,
+                                                    Some(&thumbnail),
+                                                    Some(description.as_str()),
+                                                    image.body.as_str(),
+                                                    mime,
+                                                    &group_id
+                                                ).await.unwrap();
                                             }
                                         }
                                         Err(e) => {
