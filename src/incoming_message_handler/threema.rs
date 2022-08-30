@@ -166,7 +166,7 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                         if let Err(e) = matrix_client
                             .send_file_to_matrix_room(
                                 &room,
-                                sender_name.as_str(),
+                                group_file_msg.file_metadata.file_name.unwrap_or("".to_string()).as_ref(),
                                 group_file_msg.file.as_slice(),
                             ).await
                         {

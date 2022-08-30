@@ -49,9 +49,9 @@ impl MatrixClient for Client {
         return Ok(());
     }
 
-    async fn send_file_to_matrix_room(&self, room: &Joined, sender_name: &str, file: &[u8]) -> Result<(), SendToMatrixRoomByThreemaGroupIdError> {
+    async fn send_file_to_matrix_room(&self, room: &Joined, body: &str, file: &[u8]) -> Result<(), SendToMatrixRoomByThreemaGroupIdError> {
         let mut cursor = Cursor::new(file);
-        room.send_attachment(sender_name, &mime::IMAGE_JPEG, &mut cursor, AttachmentConfig::new()).await
+        room.send_attachment(body, &mime::IMAGE_JPEG, &mut cursor, AttachmentConfig::new()).await
             .map_err(|e| { SendToMatrixRoomByThreemaGroupIdError::MatrixError(e) })?;
 
         return Ok(());

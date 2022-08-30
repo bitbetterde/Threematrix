@@ -23,7 +23,7 @@ pub trait MatrixClient {
     async fn send_file_to_matrix_room(
         &self,
         room: &Joined,
-        user_name: &str,
+        body: &str,
         file: &[u8],
     ) -> Result<(), SendToMatrixRoomByThreemaGroupIdError>;
     async fn bind_threema_group_to_matrix_room(
