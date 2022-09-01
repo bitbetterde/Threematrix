@@ -4,13 +4,14 @@ use std::sync::Arc;
 use log::{debug, info};
 use matrix_sdk::ruma::exports::serde_json;
 use mime::Mime;
-use threema_gateway::{ApiBuilder, decrypt_file_data, E2eApi, encrypt_file_data, IncomingMessage, PublicKey, RenderingType};
+use threema_gateway::{ApiBuilder, decrypt_file_data, E2eApi, encrypt_file_data, FileMessage, IncomingMessage, PublicKey, RenderingType};
 use threema_gateway::errors::{ApiBuilderError, ApiError};
 use tokio::sync::Mutex;
 
 use crate::errors::{ProcessIncomingMessageError, SendGroupMessageError};
 use crate::threema::serialization::{encrypt_group_file_msg, encrypt_group_sync_req_msg};
-use crate::threema::types::{FileMessage, GroupCreateMessage, GroupFileMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
+use crate::threema::types::{GroupCreateMessage, GroupFileMessage, GroupRenameMessage, GroupTextMessage, MessageBase, MessageType, TextMessage};
+
 use crate::util::retry_request;
 
 use self::serialization::encrypt_group_text_msg;
@@ -136,7 +137,7 @@ impl ThreemaClient {
         } else {
             None
         };
-        let file_message = threema_gateway::FileMessage::builder(file_blob_id, key, mime, file.len() as u32)
+        let file_message = FileMessage::builder(file_blob_id, key, mime, file.len() as u32)
             .thumbnail_opt(thumb_blob_id)
             .file_name_opt(Some(file_name))
             .description_opt(description)
@@ -273,7 +274,6 @@ impl ThreemaClient {
                 let file_data_json = String::from_utf8(data[i..].to_vec()).unwrap();
                 let file_metadata = serde_json::from_str::<FileMessage>(file_data_json.as_str()).unwrap();
 
-
                 // Show result
                 debug!("  GroupCreator: {}", group_creator);
                 debug!("  groupId: {:?}", group_id);
@@ -283,9 +283,9 @@ impl ThreemaClient {
                 let file;
                 {
                     let api = self.api.lock().await;
-                    let file_encrypted = api.blob_download(file_metadata.file_blob_id.as_str()).await.unwrap();
-                    let key = hex::decode(file_metadata.blob_encryption_key.as_str()).unwrap();
-                    file = decrypt_file_data(&file_encrypted, key.try_into().unwrap()).unwrap();
+                    let file_encrypted = api.blob_download(file_metadata.file_blob_id()).await.unwrap();
+                    // let key = hex::decode(file_metadata.blob_encryption_key()).unwrap();
+                    file = decrypt_file_data(&file_encrypted, file_metadata.blob_encryption_key()).unwrap();
                 }
 
                 {

@@ -141,13 +141,13 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
 
                 match matrix_client.get_joined_room_by_threema_group_id(&group_file_msg.group_id).await {
                     Ok(room) => {
-                        let file_description = group_file_msg.file_metadata.description.unwrap_or("".to_string());
+                        let file_description = group_file_msg.file_metadata.description().as_deref().unwrap_or("");
                         if let Err(e) = matrix_client
                             .send_message_to_matrix_room(
                                 &room,
                                 sender_name.as_str(),
-                                file_description.as_str(),
-                                file_description.as_str(),
+                                file_description,
+                                file_description,
                             ).await
                         {
                             match e {
@@ -162,11 +162,10 @@ You can find the required room id in your Matrix client. Attention: This is NOT 
                                 }
                             }
                         }
-
                         if let Err(e) = matrix_client
                             .send_file_to_matrix_room(
                                 &room,
-                                group_file_msg.file_metadata.file_name.unwrap_or("".to_string()).as_ref(),
+                                group_file_msg.file_metadata.file_name().as_deref().unwrap_or(""),
                                 group_file_msg.file.as_slice(),
                             ).await
                         {

@@ -4,8 +4,8 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-threema-gateway = { git = "https://github.com/bitbetterde/threema-gateway-rs.git" }
-#threema-gateway = { path = "../threema-gateway-rs" }
+#threema-gateway = { git = "https://github.com/bitbetterde/threema-gateway-rs.git" }
+threema-gateway = { path = "../threema-gateway-rs" }
 tokio = { version = "1", features = ["full"] }
 actix-web = "4"
 rand = "0.8.5"

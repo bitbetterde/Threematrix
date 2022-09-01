@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use threema_gateway::FileMessage;
 
 // Custom internal types
 #[derive(Debug)]
@@ -58,64 +58,6 @@ pub struct MessageBase {
     pub push_from_name: Option<String>,
     pub date: u64,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FileMessage {
-    #[serde(rename = "b")]
-    pub file_blob_id: String,
-    #[serde(rename = "m")]
-    // #[serde(serialize_with = "serialize_to_string")]
-    pub file_media_type: String,
-
-    #[serde(rename = "t")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbnail_blob_id: Option<String>,
-    #[serde(rename = "p")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    // #[serde(serialize_with = "serialize_opt_to_string")]
-    pub thumbnail_media_type: Option<String>,
-
-    #[serde(rename = "k")]
-    // #[serde(serialize_with = "key_to_hex")]
-    pub blob_encryption_key: String,
-
-    #[serde(rename = "n")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_name: Option<String>,
-    #[serde(rename = "s")]
-    pub file_size_bytes: u32,
-    #[serde(rename = "d")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-
-    #[serde(rename = "j")]
-    pub rendering_type: u8,
-    #[serde(rename = "i")]
-    pub reserved: u8,
-
-    // #[serde(rename = "x")]
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // metadata: Option<FileMetadata>,
-}
-
-// /// Metadata for a file message (depending on media type).
-// ///
-// /// This data is intended to enhance the layout logic.
-// #[derive(Debug, Serialize, Default)]
-// struct FileMetadata {
-//     #[serde(rename = "a")]
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     animated: Option<bool>,
-//     #[serde(rename = "h")]
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     height: Option<u32>,
-//     #[serde(rename = "w")]
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     width: Option<u32>,
-//     #[serde(rename = "d")]
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     duration_seconds: Option<f32>,
-// }
 
 
 pub enum MessageType {
