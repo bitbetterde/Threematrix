@@ -13,6 +13,8 @@ Currently this software is built to work with Threemas commercial Gateway API pr
 
 We have been in contact with Threema and have told them how unfortunate the current pricing model is for use in a messenger bridge – especially for private/hobbyist use. They seemed to understand our problem and they will think about possible solutions for this problem. We hope that we will be able to find a (more affordable) pricing solution for future use of our bridge.
 
+**UPDATE:** Threema has revised/lowered their pricing model for the Gatway product. The pricing information in the last paragraph is outdated. So it's still paid "per message", but it's gotten somewhat cheaper recently.
+
 ## Security Disclaimer
 Both Threema and Matrix are products known for their E2E Encryption capabilities. While "both sides" might offer strong encryption, a messenger bridge is conceptually always a weak point in encryption. To forward messages the bridge needs to decrypt the incoming message and encrypt it again for the outgoing side. This means that the bridge is capable of reading the content of messages passing through it. **Please don't use a bridge for sensitive communication and make sure you know who has access to the bridge server.**
 
