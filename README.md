@@ -1,12 +1,12 @@
 # Threematrix
 ![Mastodon Follow](https://img.shields.io/mastodon/follow/107838426834517530?domain=https%3A%2F%2Fmastodon.social&style=social) 
 ![Matrix](https://img.shields.io/matrix/threematrix:matrix.org?label=Chat%20on%20Matrix&style=social)
-> Threematrix is a work-in-progress bridge software – written in Rust – between the Threema messenger (based on the Threema Gateway API) and the Matrix protocol. It's currently being funded via the German Prototype Fund.
+> Threematrix is a work-in-progress bridge software – written in Rust – between the Threema messenger (based on the Threema Gateway API) and the Matrix protocol. It was funded via the German Prototype Fund.
 
 ![threematrix_hero](https://user-images.githubusercontent.com/4677417/179706685-abd4253e-d523-4aa3-b4cc-9cafef6f45fa.png)
 
 ## Status
-This project was submitted and accepted for funding via the 11th round of the [German Prototype Fund](https://prototypefund.de/), which aims to fund public interest technologies under open source licenses. The funding period started on **March 1st 2022** and will last for six months until the end of August 2022. The software is currently in Alpha stadium (meaning it can be tested, but shouldn't be used in production, yet).
+This project was submitted and accepted for funding via the 11th round of the [German Prototype Fund](https://prototypefund.de/), which aims to fund public interest technologies under open source licenses. The funding period started on **March 1st 2022** and lasted for six months until the end of August 2022. The software is currently in Alpha stadium (meaning it can be tested, but shouldn't be used in production, yet).
 
 ## Cost Disclaimer
 Currently this software is built to work with Threemas commercial Gateway API product – which uses a [per-message pricing model](https://gateway.threema.ch/en/products) and has a one-time setup fee of around 64 Euro. Their **pricing model is not well suited for the use with a messsenger bridge**, because typically controlling the amount of messages is out of the hand of the bridge admin. Also, group messages are just implemented as regular text messages to every group member. So for the bridge to receive a single message from Matrix and forward it to a 100 member Threema group, will be equal to sending 100 single text messages (costing you 100 credits which equals a price between 2 and 5 Euro – depending on how much credits you bought). **BE AWARE THAT THE BRIDGE MIGHT USE UP YOUR THREEMA CREDITS VERY FAST – DON'T PUT LARGE AMOUNTS OF CREDITS/MONEY IN YOUR ACCOUNT AND BE VERY CAREFUL WHEN ADDING THE BRIDGE TO LARGE THREEMA GROUPS.**
