@@ -1,42 +1,34 @@
 pub mod util;
+pub mod errors;
+pub mod matrix_client_impl;
 
-use log::{debug, error, info};
-use matrix_sdk::{room::Room, ruma::events::room::member::StrippedRoomMemberEvent, Client};
-use tokio::time::{sleep, Duration};
+use async_trait::async_trait;
+use matrix_sdk::room::Joined;
+use crate::matrix::errors::{BindThreemaGroupToMatrixError, FindMatrixRoomByThreemaGroupIdError, SendToMatrixRoomByThreemaGroupIdError};
 
-// Source: https://github.com/matrix-org/matrix-rust-sdk/blob/matrix-sdk-0.5.0/crates/matrix-sdk/examples/autojoin.rs
-pub async fn on_stripped_state_member(
-    room_member: StrippedRoomMemberEvent,
-    client: Client,
-    room: Room,
-) {
-    if room_member.state_key != client.user_id().await.unwrap() {
-        return;
-    }
 
-    if let Room::Invited(room) = room {
-        debug!("Matrix: Autojoining room {}", room.room_id());
-        let mut delay = 2;
-
-        while let Err(err) = room.accept_invitation().await {
-            // retry autojoin due to synapse sending invites, before the
-            // invited user can join for more information see
-            // https://github.com/matrix-org/synapse/issues/4345
-            error!(
-                "Matrix: Failed to join room {} ({:?}), retrying in {}s",
-                room.room_id(),
-                err,
-                delay
-            );
-
-            sleep(Duration::from_secs(delay)).await;
-            delay *= 2;
-
-            if delay > 3600 {
-                error!("Matrix: Can't join room {} ({:?})", room.room_id(), err);
-                break;
-            }
-        }
-        info!("Matrix: Successfully joined room {}", room.room_id());
-    }
+#[async_trait]
+pub trait MatrixClient {
+    async fn get_joined_room_by_threema_group_id(
+        &self,
+        threema_group_id: &[u8],
+    ) -> Result<Joined, FindMatrixRoomByThreemaGroupIdError>;
+    async fn send_message_to_matrix_room(
+        &self,
+        room: &Joined,
+        user_name: &str,
+        body: &str,
+        html_body: &str,
+    ) -> Result<(), SendToMatrixRoomByThreemaGroupIdError>;
+    async fn send_file_to_matrix_room(
+        &self,
+        room: &Joined,
+        body: &str,
+        file: &[u8],
+    ) -> Result<(), SendToMatrixRoomByThreemaGroupIdError>;
+    async fn bind_threema_group_to_matrix_room(
+        &self,
+        threema_group_id: &[u8],
+        matrix_room_id: &str,
+    ) -> Result<(), BindThreemaGroupToMatrixError>;
 }

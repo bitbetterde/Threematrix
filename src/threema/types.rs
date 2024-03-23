@@ -1,3 +1,5 @@
+use threema_gateway::FileMessage;
+
 // Custom internal types
 #[derive(Debug)]
 pub struct MessageGroup {
@@ -10,6 +12,7 @@ pub struct MessageGroup {
 pub enum Message {
     GroupTextMessage(GroupTextMessage),
     TextMessage(TextMessage),
+    GroupFileMessage(GroupFileMessage),
     GroupCreateMessage(GroupCreateMessage),
     GroupRenameMessage(GroupRenameMessage),
 }
@@ -39,6 +42,14 @@ pub struct GroupTextMessage {
     pub group_id: Vec<u8>,
 }
 
+pub struct GroupFileMessage {
+    pub base: MessageBase,
+    pub file_metadata: FileMessage,
+    pub group_creator: String,
+    pub group_id: Vec<u8>,
+    pub file: Vec<u8>,
+}
+
 #[derive(Clone)]
 pub struct MessageBase {
     pub from_identity: String,
@@ -48,9 +59,11 @@ pub struct MessageBase {
     pub date: u64,
 }
 
+
 pub enum MessageType {
     Text,
     GroupText,
+    GroupFile,
     GroupCreate,
     GroupRename,
     GroupRequestSync,
@@ -65,6 +78,7 @@ impl From<u8> for MessageType {
         match value {
             0x01 => MessageType::Text,
             0x41 => MessageType::GroupText,
+            0x46 => MessageType::GroupFile,
             0x4a => MessageType::GroupCreate,
             0x4b => MessageType::GroupRename,
             0x51 => MessageType::GroupRequestSync,
@@ -84,6 +98,7 @@ impl Into<u8> for MessageType {
         match self {
             MessageType::Text => 0x01,
             MessageType::GroupText => 0x41,
+            MessageType::GroupFile => 0x46,
             MessageType::GroupCreate => 0x4a,
             MessageType::GroupRename => 0x4b,
             MessageType::GroupRequestSync => 0x51,

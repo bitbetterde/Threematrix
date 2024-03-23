@@ -11,12 +11,10 @@ use std::error::Error;
 use std::process;
 use tokio::sync::Mutex;
 
-use threematrix::matrix::on_stripped_state_member;
 use threematrix::threema::ThreemaClient;
-use threematrix::{
-    matrix_incoming_message_handler, threema_incoming_message_handler, AppState, LoggerConfig,
-    ThreematrixConfig,
-};
+use threematrix::{AppState, LoggerConfig, ThreematrixConfig};
+use threematrix::incoming_message_handler::matrix::{matrix_incoming_message_handler, on_stripped_state_member};
+use threematrix::incoming_message_handler::threema::threema_incoming_message_handler;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
@@ -89,11 +87,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 web::post().to(threema_incoming_message_handler),
             )
         })
-        .bind((
-            cfg.threema.host.unwrap_or("localhost".to_owned()),
-            cfg.threema.port.unwrap_or(443),
-        ))?
-        .run(),
+            .bind((
+                cfg.threema.host.unwrap_or("localhost".to_owned()),
+                cfg.threema.port.unwrap_or(443),
+            ))?
+            .run(),
     );
 
     let matrix_server = tokio::spawn(async move { matrix_client.sync(settings).await });
